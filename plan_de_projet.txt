@@ -1,0 +1,32 @@
+todo
+ - créer un fichier yaml qui contient les caractéristiques des app
+ - créer une fonction generate_packet qui prend en parametre un fichier yaml qui va lui donner les caracterstique de l'app
+	- in : 
+		- l'app et ses attributs
+	- out : 
+		- les temps d'inter-arrivées des paquets
+		- les longueurs des paquets
+ - créer une focntion qui determine les cqi
+	- pathloss -> mapping -> CQI
+ - creer une fonction qui associe les CQI dans les fichiers  
+ - creer une fonction qui utilise les tables pour trouver les efficacites
+ - creer une fonction qui calcule RB
+ - creer une fonction qui calcule le Ninfo
+ - Gestion du traffic
+	- determine tes coords
+	- trouve tes pathloss
+	- cmb d'UE par antenne avec les pathloss
+	- split tes RB par antenne en fonction du traffic generer par les UE
+ - tout mettre ensemble et faire des graphs
+
+
+
+
+
+
+
+- Questions a big J
+	- comment faire le mapping, ya yu des big nono?
+	- comment on determine si cest out of range
+	- est-ce que ya dautre metrique check sauf le pathloss pour le mapping
+	- pour la gestion du traffic, on simule nos files d'attentes au niveau des UE ou des antenness
