@@ -30,3 +30,5 @@ todo
 	- comment on determine si cest out of range
 	- est-ce que ya dautre metrique check sauf le pathloss pour le mapping
 	- pour la gestion du traffic, on simule nos files d'attentes au niveau des UE ou des antenness
+	- elaborer sur N_info, trame, etc.
+	- on regarde le traffic en bit ou paquet
