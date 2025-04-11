@@ -32,3 +32,28 @@ todo
 	- pour la gestion du traffic, on simule nos files d'attentes au niveau des UE ou des antenness
 	- elaborer sur N_info, trame, etc.
 	- on regarde le traffic en bit ou paquet
+
+- Question/Réponse
+	1. Existe-t-il une relation particulière recommandée pour effectuer le mapping du pathloss vers le CQI (par exemple : linéaire, exponentielle, par seuils, etc.) ?
+	-R: Vous pouvez utiliser la relation de votre choix, tant que vous pouvez la justifier. Consultez la littérature à ce sujet au besoin.
+
+	2. Y a-t-il des erreurs courantes à éviter dans ce processus de mapping ?
+	-R: Peut-être faire attention à bien gérer les pathloss infinis et nuls.
+	
+	3. Comment déterminer si un UE est considéré comme étant hors de portée ? Est-ce uniquement en fonction d’un seuil de pathloss, de CQI, ou selon une autre métrique comme le SNR ?
+	-R: Bonne question. Je dirais que cela dépend de votre mapping CQI. Encore une fois, vous pouvez l’implémenter de la façon que vous souhaitez, simplement expliquer/justifier votre décision. Vous pourriez tester différentes façons de faire et voir comment cela impacte le réseau.
+	
+	4. Le pathloss est-il suffisant pour déterminer le CQI dans notre simulation, ou doit-on aussi considérer d’autres facteurs, comme le SNR?
+	-R: L’utilisation du pathloss est suffisante.
+	
+	5. Pour simuler le trafic, doit-on gérer les files d’attente au niveau des UEs, des antennes, ou les deux ? Cela concerne notamment les cas de congestion ou de priorisation selon l’application.
+	-R: Chaque UE souhaite envoyer son message dès qu’il est généré. Le flot de paquets est limité par l’allocation des RBs par l’antenne. C’est donc l’antenne qui gère cette allocation et, par conséquent, la file d’attente.
+	
+	6. Pourriez-vous préciser comment intégrer la notion de trame/slot dans le calcul de N_info et comment cela influence la transmission d’un paquet dans le simulateur ?
+	-R: Une trame/slot est un temps d’allocation à un UE durant lequel il peut transmettre un message. Le calcul de Ninfo correspond au calcul du nombre de bits maximal que peut envoyer l’UE dans ce laps de temps. Si la taille d’un paquet est supérieure à Ninfo, il faudra le fragmenter, ce qui va affecter la transmission du paquet.
+	
+	7. Dans le cadre de la file d’attente et de la gestion des transmissions, faut-il modéliser les files en paquets entiers ou en quantité de bits ? En d'autres mots, est-ce que chaque entité dans la file représente un paquet complet ou une charge binaire à fragmenter et envoyer progressivement ?
+	-R: Vous êtes libre de faire l’implémentation que vous souhaitez, tant que le contenu des trames est bien celui attendu et que votre implémentation vous permet d’obtenir les résultats/statistiques nécessaires pour votre rapport.
+
+
+	
