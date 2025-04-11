@@ -1,0 +1,3 @@
+Massine et Yanis jeudi 10/04
+- On a compris comment faire le set up des Apps dans le yaml
+- On a commencé le mapping des pathloss avec les CQI et les efficiencies ( Table 5.2.2.1-2: 4-bit CQI Table ts_138214v160400p.pdf)
