@@ -664,6 +664,43 @@ def pathloss_to_cqi(pathloss, frequency_range):
     
     return 0  # Default to no transmission if above all thresholds
 
+def get_efficiency_from_cqi(cqi):
+    """
+    Get spectral efficiency from CQI based on 3GPP TS 38.214 Table 5.2.2.1-2
+    
+    (to be added to the report: this table was chosen over the other tables because it's the 
+    standard table used in 5G NR implementations;
+    It provides a good balance between robustness and throughput;
+    Using a single table will make it easier to compare performance across different applications)
+
+    Args:
+        cqi: Channel Quality Indicator (0-15)
+        
+    Returns:
+        Spectral efficiency
+    """
+    # CQI to efficiency mapping based on Table 5.2.2.1-2
+    efficiency_table = {
+        0: 0.0,    # Out of range - no transmission
+        1: 0.1523, # QPSK, code rate 78/1024
+        2: 0.2344, # QPSK, code rate 120/1024
+        3: 0.3770, # QPSK, code rate 193/1024
+        4: 0.6016, # QPSK, code rate 308/1024
+        5: 0.8770, # QPSK, code rate 449/1024
+        6: 1.1758, # QPSK, code rate 602/1024
+        7: 1.4766, # 16QAM, code rate 378/1024
+        8: 1.9141, # 16QAM, code rate 490/1024
+        9: 2.4063, # 16QAM, code rate 616/1024
+        10: 2.7305, # 64QAM, code rate 466/1024
+        11: 3.3223, # 64QAM, code rate 567/1024
+        12: 3.9023, # 64QAM, code rate 666/1024
+        13: 4.5234, # 64QAM, code rate 772/1024
+        14: 5.1152, # 64QAM, code rate 873/1024
+        15: 5.5547  # 64QAM, code rate 948/1024
+    }
+    
+    # Return the efficiency for the given CQI, or 0.0 if CQI is invalid
+    return efficiency_table.get(cqi, 0.0)
 
 def main(args):
 
