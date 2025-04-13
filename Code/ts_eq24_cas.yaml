@@ -1,8 +1,8 @@
-# lab3_eq24_cas.yaml
+# ts_eq24_cas.yaml
 ###############################################
 #                                             #
 #         Cas lab 3:                          #
-#            File: lab3_eq24_cas.yaml         #
+#            File: ts_eq24_cas.yaml         #
 #            Description: Etude Transmisssion #
 #                                             #
 ###############################################
@@ -13,8 +13,8 @@ ETUDE_DE_TRANSMISSION:
    ANT_COORD_GEN : g
    UE_COORD_GEN: a
    COORD_FILES:  # Used when coordinates are read from a file 
-      read: lab3_eq24_coords.txt
-      #write: lab3_eq24_coords.txt
+      read: ts_eq24_coords.txt
+      #write: ts_eq24_coords.txt
    DEVICES:
       Antenna1 : # not sure how many and what kind of antennas to choose
          number : 40
@@ -30,10 +30,10 @@ ETUDE_DE_TRANSMISSION:
            length : 5000
            height : 4000
    VISIBILITY: # read nlos information
-      read: lab3_eq24_visibility.txt
+      read: ts_eq24_visibility.txt
    CLOCK : 
       tstart : 0.0
       tfinal : 10.0 #ms 
       dt : 1.0      #ms 
-      read : lab3_eq24_segments.txt
-      #write: time_segments_lab3.txt
+      read : ts_eq24_segments.txt
+      #write: time_segments_ts.txt

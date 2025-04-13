@@ -8,3 +8,8 @@ Francis samedi 12/04
 - Fonction generate_packet
     - J'ai mis la fonction dans un .py séparé parce que je sais pas encore quel code on utilise.
     - Dans le code, c'est un exemple avec 10 paquets pour streaming 4k.
+
+Yanis dimanche 13/04
+- Menage et structuration du code, avec le lab3 d'Alex et Francis
+- implementation de fonctions : pathloss_to_cqi, get_efficiency_from_cqi, 
+- les nouvelles fomctions sont rajoutées aprés le commentaire ## NEW PROJECT FUNCTIONS ##

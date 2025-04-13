@@ -304,11 +304,11 @@ def generate_pathlosses(data_case,ues,antennas):
                 pathlosses[int(ue.id)][int(antenna.id)]=threegpp(scenario, frequency, distance, antenna_height, UE_height, ue.id, antenna.id, visibility_file_name)
     return pathlosses
 
-# Fonction pour créer le fichier de pathloss lab3_eq24_pl.txt
+# Fonction pour créer le fichier de pathloss ts_eq24_pl.txt
 def create_pathloss_file(data_case, ues, antennas, pathlosses):
     model = data_case["ETUDE_DE_TRANSMISSION"]["PATHLOSS"]["model"]
     scenario = data_case["ETUDE_DE_TRANSMISSION"]["PATHLOSS"]["scenario"]
-    with open("lab3_eq24_pl.txt", "w") as file:
+    with open("ts_eq24_pl.txt", "w") as file:
         for ue in ues:
             for antenna in antennas:
                 file.write(f"{ue.id} {antenna.id} {pathlosses[int(ue.id)][int(antenna.id)]} {model} {scenario}\n")
@@ -336,13 +336,13 @@ def create_assoc_files(data_case, ues, antennas,pathlosses):
             ue.assoc_ant = best_antenna.id
 
     # Créer le fichier d'association des antennes
-    with open("lab3_eq24_assoc_ant.txt", "w") as file:
+    with open("ts_eq24_assoc_ant.txt", "w") as file:
         for antenna in antennas:
             assoc_ues_str = " ".join(map(str, antenna.assoc_ues))
             file.write(f"{antenna.id} {assoc_ues_str}\n")
 
     # Créer le fichier d'association des UEs aux antennes
-    with open("lab3_eq24_assoc_ue.txt", "w") as file:
+    with open("ts_eq24_assoc_ue.txt", "w") as file:
         for ue in ues:
             file.write(f"{ue.id} {ue.assoc_ant}\n")
 
@@ -399,7 +399,7 @@ def generate_ue_transmission(data_case,devices,ues,antennas):
                 elif end > tick*dt: #segement started before tick n-1 and will stop after tick n
                     ue_data_frames[ue_id][tick-1] += ((tick*dt) - (dt*(tick-1)))*ue_R
 
-    with open("lab3_eq24_transmission_ue.txt", "w") as file:
+    with open("ts_eq24_transmission_ue.txt", "w") as file:
         for ue in ues:
             file.write(f"{ue.id}\n")
             for tick in range(numTicks):
@@ -410,7 +410,7 @@ def generate_ue_transmission(data_case,devices,ues,antennas):
         for tick in range(1,numTicks+1):
             antenna_data_frames[int(ue.assoc_ant)][tick-1] += ue_data_frames[int(ue.id)][tick-1]
 
-    with open("lab3_eq24_transmission_ant.txt", "w") as file:
+    with open("ts_eq24_transmission_ant.txt", "w") as file:
         for antenna in antennas:
             file.write(f"{antenna.id}\n")
             for tick in range(numTicks):
@@ -432,7 +432,7 @@ def compute_antenna_transmission(data_case,ue_data_frames,antennas,ues):
 
     return antenna_data_frames
 
-def plot_transmissions(ue_data_frames, antenna_data_frames, tstart, tfinal, dt, ues, antennas, pdf_filename="lab3_eq24_graphiques.pdf"):
+def plot_transmissions(ue_data_frames, antenna_data_frames, tstart, tfinal, dt, ues, antennas, pdf_filename="ts_eq24_graphiques.pdf"):
     with PdfPages(pdf_filename) as pdf:
         ue_data_frames = np.array(ue_data_frames)
         antenna_data_frames = np.array(antenna_data_frames)
