@@ -16,12 +16,14 @@ ETUDE_DE_TRANSMISSION:
       read: lab3_eq24_coords.txt
       #write: lab3_eq24_coords.txt
    DEVICES:
-      Antenna1 : # Group Antenna1 (As defined in the database)
-         number : 7
-      UE1-App1 : # Group UE1-App1 (As defined in the database)
-         number : 30
-      UE2-App2 : # Group UE2-App2 (As defined in the database)
-         number: 20
+      Antenna1 : # not sure how many and what kind of antennas to choose
+         number : 40
+      UE1-App1 : # 4K streaming devices
+         number : 40
+      UE2-App2 : # Drones devices
+         number : 40        
+      UE3-App3 : # Auto detect devices
+         number: 1000
    GEOMETRY:
       Surface:
          rectangle:

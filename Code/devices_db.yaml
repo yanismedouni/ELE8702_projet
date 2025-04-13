@@ -51,14 +51,18 @@ ANTENNAS:
 UES:
   UE1-App1:
     type: ue
-    name: MY-App1
-    app: app1
-    height:  1.5
-    R : 1000 #kbs
+    app: Streaming4k
+    height: 1.5
+    R: 2000 #kbps
 
   UE2-App2:
     type: ue
-    name: MY-App2
-    app: app2
-    height:  1.5
-    R : 5000 #kbs
+    app: Drone
+    height: 1.5
+    R: 3 #kbps
+    
+  UE3-App3:
+    type: ue
+    app: Auto_detect
+    height: 1.5
+    R: 0.1 #kbps
