@@ -6,5 +6,5 @@ Francis samedi 12/04
 - Dossier Devoir
 - Fichier yaml avec les caracterisitiques des apps
 - Fonction generate_packet
-    - J'ai mis la fonction dans un .py séparé parce que je sais pas encire quel code on utilise.
+    - J'ai mis la fonction dans un .py séparé parce que je sais pas encore quel code on utilise.
     - Dans le code, c'est un exemple avec 10 paquets pour streaming 4k.
