@@ -1,0 +1,35 @@
+applications:
+  streaming_4k:
+    description: "Streaming vidéo UHD sur mobile"
+    interarrival:
+      distribution: exponential
+      mean_ms: 200          # Temps moyen d'inter-arrivée en millisecondes
+    packet_length:
+      distribution: uniform
+      base_bits: 400000     # Longueur moyenne du paquet en bits
+      variability: 0.20     # Variabilité de ±20%
+    num_ues: 40
+
+  drone_control:
+    description: "Contrôle manuel de drone"
+    interarrival:
+      distribution: uniform
+      min_ms: 30            # Temps d'inter-arrivée minimal en ms
+      max_ms: 40            # Temps d'inter-arrivée maximal en ms
+    packet_length:
+      distribution: uniform
+      base_bits: 100        # Longueur moyenne du paquet en bits
+      variability: 0.05     # Variabilité de ±5%
+    num_ues: 40
+
+  car_detection:
+    description: "Détection d'automobile par capteur optique"
+    interarrival:
+      distribution: uniform
+      min_ms: 700           # Temps d'inter-arrivée minimal en ms
+      max_ms: 1300          # Temps d'inter-arrivée maximal en ms
+    packet_length:
+      distribution: uniform
+      base_bits: 100        # Longueur moyenne du paquet en bits
+      variability: 0.05     # Variabilité de ±5%
+    num_ues: 1000
