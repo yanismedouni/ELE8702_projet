@@ -5,6 +5,7 @@ import sys
 import math
 import yaml
 import random
+import simpy
 import os
 import pathloss_3gpp_eq24
 import matplotlib.pyplot as plt
@@ -12,34 +13,186 @@ import numpy as np
 from matplotlib.backends.backend_pdf import PdfPages
 
 class Antenna:
-     
-    def __init__(self, id):
-        self.id = id          #id de l'antenne (int)
-        self.frequency = None # Antenna frequency in GHz
-        self.height = None    # Antenna height
-        self.group = None     # group défini dans la base de données (str)
-        self.coords = None    # tuple contenant les coordonnées (x,y) 
-        self.assoc_ues = []   # liste avec les id des UEs associés à l'antenne
-        self.scenario = None  # pathloss scénario tel que lu du fichier de cas (str)
-        self.gen = None       # type de géneration de coordonnées: 'g', 'a', etc. (str)
-    
-    def __repr__(self):
-        return f"Antenna(id={self.id}, frequency={self.frequency}, height={self.height}, group={self.group}, coords={self.coords}, assoc_ues={self.assoc_ues}, scenario={self.scenario}, gen={self.gen})"
+   def __init__(self, id):
+       self.id = id           # id de l'antenne (int)
+       self.frequency = None  # Fréquence de l'antenne en GHz
+       self.height = None     # Hauteur de l'antenne
+       self.group = None      # groupe défini dans la base de données (str)
+       self.coords = None     # tuple contenant les coordonnées (x,y) 
+       self.assoc_ues = []    # liste des ids des UEs associés à l'antenne
+       self.scenario = None   # scénario de pathloss tel que lu du fichier de cas (str)
+       self.gen = None        # type de génération de coordonnées: 'g', 'a', etc. (str)
+       self.packet_queue = [] # tampon pour les paquets en attente de traitement
+       self.all_packets = []  # liste de tous les paquets reçus
+       self.current_slot = None  # Slot courante
+       self.packets_this_slot = 0  # Paquets traités dans le slot courant
+       self.bits_this_slot = 0    # Bits traités dans le slot courant
+       self.scs = None        # Espacement des sous-porteuses (kHz)
+       self.n_rb = None       # Nombre de blocs de ressources
+       
+   def __repr__(self):
+       return f"Antenna(id={self.id}, freq={self.frequency}GHz, RBs={self.n_rb}, UEs={len(self.assoc_ues)})"
+   
+   def calculate_resource_blocks(self):
+       """
+       Calcule le nombre de blocs de ressources en fonction de l'espacement des sous-porteuses
+       """
+       # Détermine le nombre de RBs basé sur le SCS
+       # Ces valeurs représentent une approche d'échelle simplifiée où:
+       # - Chaque doublement du SCS double le nombre de RBs
+       # - Cela capture l'augmentation relative de capacité avec un SCS plus élevé
+       # - Ce ne sont pas les valeurs exactes des tableaux 3GPP mais fournissent une relation proportionnelle
+       # - Le nombre réel de RBs en 5G dépend à la fois du SCS et de la bande passante, mais cette simplification
+       #   est suffisante pour des fins de simulation comparative
+       if self.scs == 15:
+           self.n_rb = 1
+       elif self.scs == 30:
+           self.n_rb = 2
+       elif self.scs == 60:
+           self.n_rb = 4
+       elif self.scs == 120:
+           self.n_rb = 8
+       else:
+       # Cas par défaut
+           self.n_rb = 1
+       print(f"Avertissement: SCS {self.scs} non pris en charge pour l'antenne {self.id}, utilisation de 1 RB")
+           
+   def receive_packet(self, env, packet):
+       """
+       Traite un paquet entrant
+       
+       Args:
+           env: Environnement SimPy
+           packet: Objet Packet à traiter
+       """
+       # Obtient l'UE qui a envoyé ce paquet
+       ue = packet.source
+       
+       # Calcule les ressources disponibles
+       overhead = 0  # Peut être 0, 6, 12, ou 18 (REs réservés)
+       n_RE = 12 * 14 - overhead  # 12 sous-porteuses × 14 symboles - overhead
+       n_RB = self.n_rb  # Nombre de blocs de ressources
+       
+       # Calcule le nombre maximum de bits d'information pouvant être transmis
+       if ue.eff is None:
+           # Défaut à une faible efficacité si non définie
+           ue.eff = 0.1523  # Équivalent à CQI 1
+           print(f"Avertissement: UE {ue.id} n'a pas d'efficacité définie, utilisation de la valeur par défaut")
+       
+       n_info = n_RB * n_RE * ue.eff
+       
+       # Obtient le temps et le slot courants
+       active_time = env.now
+       dt = 1  # Durée d'un slot
+       active_slot = int(active_time / dt)
+       
+       # Si nous avons changé de slot, traite les paquets en file d'attente
+       if active_slot != self.current_slot:
+           self.current_slot = active_slot
+           bits_to_move = 0
+           pacs_to_move = 0
+           
+           # Calcule combien de paquets nous pouvons traiter dans ce slot
+           for pac in self.packet_queue:
+               if (pac.size + bits_to_move) <= n_info:
+                   bits_to_move += pac.size
+                   pacs_to_move += 1
+               else:
+                   break
+           
+           self.packets_this_slot = pacs_to_move
+           self.bits_this_slot = bits_to_move
+           
+           # Traite les paquets qui rentrent dans ce slot
+           if pacs_to_move > 0:
+               for pac in self.packet_queue[:pacs_to_move]:
+                   pac.timeRX = active_slot * dt
+                   self.all_packets.append(pac)
+               
+               # Retire les paquets traités de la file d'attente
+               self.packet_queue = self.packet_queue[pacs_to_move:]
+       
+       # Traite le paquet courant
+       if (self.bits_this_slot + packet.size) < n_info:
+           # S'il rentre dans le slot courant, traite immédiatement
+           self.bits_this_slot += packet.size
+           self.packets_this_slot += 1
+           packet.timeRX = env.now
+           self.all_packets.append(packet)
+       else:
+           # Sinon, le met en file d'attente pour plus tard
+           self.packet_queue.append(packet)
+
+
+class Packet:
+   def __init__(self, source, app, packet_id, packet_size, timeTX):
+       self.id = packet_id
+       self.size = packet_size
+       self.timeTX = timeTX  # Temps d'envoi du paquet
+       self.timeRX = None    # Temps de réception du paquet
+       self.app = app
+       self.source = source
 
 class UE:
-
-    def __init__(self, id, app_name):
-        self.id= id           # id de l'UE (int)
-        self.height = None    # UE height
-        self.group = None     # group défini dans la base de données (str)
-        self.coords=None      # tuple contenant les coordonnées (x,y) 
-        self.app=app_name     # nom de l'application qui tourne dans le UE (str)
-        self.assoc_ant=None   # id de l'antenne associée à l'UE (int)
-        self.los = True       # LoS ou non (bool)
-        self.gen = None       # type de géneration de coordonnées: 'g', 'a', etc. (str)
-    
-    def __repr__(self):
-        return f"Ue(id={self.id}, height={self.height}, group={self.group}, coords={self.coords}, assoc_antenna={self.assoc_ant}, scenario={self.assoc_ant},los={self.los}, gen={self.gen})"
+   def __init__(self, id, app_name):
+       self.id = id           # id de l'UE (int)
+       self.height = None     # Hauteur de l'UE
+       self.group = None      # groupe défini dans la base de données (str)
+       self.coords = None     # tuple contenant les coordonnées (x,y) 
+       self.app = app_name    # nom de l'application exécutée sur l'UE (str)
+       self.assoc_ant = None  # id de l'antenne associée à l'UE (int)
+       self.los = True        # LoS ou non (bool)
+       self.gen = None        # type de génération de coordonnées: 'g', 'a', etc. (str)
+       self.packets = []      # liste des paquets générés par cet UE
+       self.assoc_ant_pl = None  # Pathloss vers l'antenne associée
+       self.cqi = None        # Indicateur de Qualité du Canal
+       self.eff = None        # Efficacité spectrale
+       self.packet_generator = None  # Processus SimPy pour la génération de paquets
+   
+   def __repr__(self):
+       return f"UE(id={self.id}, app={self.app}, coords={self.coords}, ant={self.assoc_ant}, cqi={self.cqi})"
+   
+   def generate_packet(self, env, antennas):
+       """
+       Processus SimPy qui génère des paquets selon les caractéristiques de l'application
+       
+       Args:
+           env: Environnement SimPy
+           antennas: Liste de toutes les antennes dans la simulation
+       """
+       while True:
+           packet_id = len(self.packets)  # Génère un ID de paquet unique
+           
+           if self.app == "Streaming4k":
+               # Distribution exponentielle avec moyenne de 200ms
+               yield env.timeout(random.expovariate(1.0 / (200e-3)))
+               # Taille du paquet: 400 000 bits ±20%
+               packet_size = int(random.uniform(0.8 * 400000, 1.2 * 400000))
+               
+           elif self.app == "Drone":
+               # Distribution uniforme entre 30-40ms
+               yield env.timeout(random.uniform(30e-3, 40e-3))
+               # Taille du paquet: 100 bits ±5%
+               packet_size = int(random.uniform(0.95 * 100, 1.05 * 100))
+               
+           elif self.app == "Auto_detect":
+               # Distribution uniforme entre 700-1300ms
+               yield env.timeout(random.uniform(700e-3, 1300e-3))
+               # Taille du paquet: 100 bits ±5%
+               packet_size = int(random.uniform(0.95 * 100, 1.05 * 100))
+               
+           else:
+               raise ValueError(f"Type d'application inconnu: {self.app}")
+           
+           # Crée le paquet et l'ajoute à la liste des paquets de l'UE
+           packet = Packet(self, self.app, packet_id, packet_size, env.now)
+           self.packets.append(packet)
+           
+           # Envoie le paquet à l'antenne associée
+           if self.assoc_ant is not None and 0 <= self.assoc_ant < len(antennas):
+               antennas[self.assoc_ant].receive_packet(env, packet)
+           else:
+               print(f"Avertissement: UE {self.id} a une antenne associée invalide {self.assoc_ant}")
 
 
 def fill_up_the_lattice(N, lh, lv, nh, nv):
@@ -701,6 +854,24 @@ def get_efficiency_from_cqi(cqi):
     
     # Return the efficiency for the given CQI, or 0.0 if CQI is invalid
     return efficiency_table.get(cqi, 0.0)
+
+
+def calculate_resource_blocks(bandwidth_mhz, subcarrier_spacing_khz):
+    # Convert to Hz
+    bandwidth_hz = bandwidth_mhz * 1e6
+    subcarrier_spacing_hz = subcarrier_spacing_khz * 1e3
+    
+    # 12 subcarriers per RB
+    rb_bandwidth = 12 * subcarrier_spacing_hz
+    
+    # Account for guard bands (90% usable)
+    usable_bandwidth = bandwidth_hz * 0.9
+    
+    # Calculate number of RBs
+    num_rbs = int(usable_bandwidth / rb_bandwidth)
+    
+    return num_rbs
+
 
 def main(args):
 
