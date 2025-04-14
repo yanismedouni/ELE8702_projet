@@ -34,29 +34,87 @@ class Antenna:
        return f"Antenna(id={self.id}, freq={self.frequency}GHz, RBs={self.n_rb}, UEs={len(self.assoc_ues)})"
    
    def calculate_resource_blocks(self):
-       """
-       Calcule le nombre de blocs de ressources en fonction de l'espacement des sous-porteuses
-       """
-       # Détermine le nombre de RBs basé sur le SCS
-       # Ces valeurs représentent une approche d'échelle simplifiée où:
-       # - Chaque doublement du SCS double le nombre de RBs
-       # - Cela capture l'augmentation relative de capacité avec un SCS plus élevé
-       # - Ce ne sont pas les valeurs exactes des tableaux 3GPP mais fournissent une relation proportionnelle
-       # - Le nombre réel de RBs en 5G dépend à la fois du SCS et de la bande passante, mais cette simplification
-       #   est suffisante pour des fins de simulation comparative
-       if self.scs == 15:
-           self.n_rb = 1
-       elif self.scs == 30:
-           self.n_rb = 2
-       elif self.scs == 60:
-           self.n_rb = 4
-       elif self.scs == 120:
-           self.n_rb = 8
-       else:
-       # Cas par défaut
-           self.n_rb = 1
-       print(f"Avertissement: SCS {self.scs} non pris en charge pour l'antenne {self.id}, utilisation de 1 RB")
+    """
+    Détermine le nombre de RB (Ressource Blocks) disponibles en fonction
+    de la largeur de bande du canal et l'espacement entre sous-porteuses.
+    """
+    # Déterminer si nous sommes en FR1 ou FR2
+    is_fr2 = self.frequency > 6  # FR2 est au-dessus de 6 GHz
+    
+    # Largeur de bande par défaut selon la plage de fréquence
+    # Dans un cas réel, cela devrait être lu à partir de la configuration
+    if is_fr2:  # mmWave
+        bandwidth_mhz = 100  # FR2 typiquement utilise 100 MHz
+    else:
+        bandwidth_mhz = 20   # FR1 typiquement utilise 20 MHz
+    
+    # Les valeurs ci-dessous sont extraites directement des normes 3GPP:
+    # - TS 38.101-1 Table 5.3.2-1 pour FR1 (sub-6GHz)
+    # - TS 38.101-2 Table 5.3.2-1 pour FR2 (mmWave)
+    # Ces tableaux définissent le nombre exact de RBs pour chaque 
+    # combinaison de largeur de bande et d'espacement de sous-porteuses.
+    
+    if is_fr2:  # Fréquences mmWave
+        if self.scs == 60:
+            if bandwidth_mhz == 50:
+                self.n_rb = 66
+            elif bandwidth_mhz == 100:
+                self.n_rb = 132
+            elif bandwidth_mhz == 200:
+                self.n_rb = 264
+            else:
+                self.n_rb = 132  # Valeur par défaut
+        elif self.scs == 120:
+            if bandwidth_mhz == 50:
+                self.n_rb = 32
+            elif bandwidth_mhz == 100:
+                self.n_rb = 66
+            elif bandwidth_mhz == 200:
+                self.n_rb = 132
+            else:
+                self.n_rb = 66  # Valeur par défaut
+        else:
+            self.n_rb = 132  # Défaut
+            print(f"Avertissement: SCS {self.scs} non supporté pour FR2, utilisation de 132 RBs")
+    else:  # Fréquences sub-6GHz
+        if self.scs == 15:
+            if bandwidth_mhz == 5:
+                self.n_rb = 25
+            elif bandwidth_mhz == 10:
+                self.n_rb = 52
+            elif bandwidth_mhz == 20:
+                self.n_rb = 106
+            elif bandwidth_mhz == 40:
+                self.n_rb = 216
+            else:
+                self.n_rb = 106  # Défaut pour 20MHz
+        elif self.scs == 30:
+            if bandwidth_mhz == 5:
+                self.n_rb = 11
+            elif bandwidth_mhz == 10:
+                self.n_rb = 24
+            elif bandwidth_mhz == 20:
+                self.n_rb = 51
+            elif bandwidth_mhz == 40:
+                self.n_rb = 106
+            else:
+                self.n_rb = 51  # Défaut pour 20MHz
+        elif self.scs == 60:
+            if bandwidth_mhz == 10:
+                self.n_rb = 11
+            elif bandwidth_mhz == 20:
+                self.n_rb = 24
+            elif bandwidth_mhz == 40:
+                self.n_rb = 51
+            else:
+                self.n_rb = 24  # Défaut pour 20MHz
+        else:
+            self.n_rb = 106  # Défaut
+            print(f"Avertissement: SCS {self.scs} non supporté pour FR1, utilisation de 106 RBs")
+    
+    print(f"Antenne {self.id}: {self.n_rb} blocs de ressources alloués (SCS: {self.scs} kHz, Bande: {bandwidth_mhz} MHz)")
            
+
    def receive_packet(self, env, packet):
        """
        Traite un paquet entrant
@@ -70,7 +128,7 @@ class Antenna:
        
        # Calcule les ressources disponibles
        overhead = 0  # Peut être 0, 6, 12, ou 18 (REs réservés)
-       n_RE = 12 * 14 - overhead  # 12 sous-porteuses × 14 symboles - overhead
+       n_RE = 12 * 14 - overhead  # 12 sous-porteuses × 14 symboles - overhead, eqn 1 de l'énoncé
        n_RB = self.n_rb  # Nombre de blocs de ressources
        
        # Calcule le nombre maximum de bits d'information pouvant être transmis
@@ -79,7 +137,7 @@ class Antenna:
            ue.eff = 0.1523  # Équivalent à CQI 1
            print(f"Avertissement: UE {ue.id} n'a pas d'efficacité définie, utilisation de la valeur par défaut")
        
-       n_info = n_RB * n_RE * ue.eff
+       n_info = n_RB * n_RE * ue.eff  #eqn 2 de l'énoncé
        
        # Obtient le temps et le slot courants
        active_time = env.now
