@@ -55,5 +55,8 @@ todo
 	7. Dans le cadre de la file d’attente et de la gestion des transmissions, faut-il modéliser les files en paquets entiers ou en quantité de bits ? En d'autres mots, est-ce que chaque entité dans la file représente un paquet complet ou une charge binaire à fragmenter et envoyer progressivement ?
 	-R: Vous êtes libre de faire l’implémentation que vous souhaitez, tant que le contenu des trames est bien celui attendu et que votre implémentation vous permet d’obtenir les résultats/statistiques nécessaires pour votre rapport.
 
+	8. faut-il modifier les hauteurs, gains et fréquences des antennes ? Combiuen d'antennes mettre dans nos simulations ?
+	-R: Vous pouvez vous baser sur le nombre d’antennes présentes dans le laboratoire 3, ou bien le modifier si vous le souhaitez, si cela vous permet d’obtenir des résultats plus intéressants dans votre rapport. Même chose en ce qui concerne le gain et la hauteur : vous pouvez choisir une antenne présente dans le fichier devices_db et ajuster certains paramètres si nécessaire. Pour la fréquence, gardez à l’esprit que vous souhaitez implémenter le standard 5G NR. En ce qui concerne les espacements entre sous-porteuses, cela dépend si l’antenne est de type FR1 ou FR2. Référez-vous au standard 5G NR, qui dicte des valeurs spécifiques. Il en va de même pour les autres paramètres nécessaires, tels que la largeur de bande du canal. Vous pouvez donc modifier ou ajouter tout ce que vous jugez nécessaire dans les fichiers de cas et dans le fichier devices_db, incluant l’ajout ou le retrait de certains paramètres. L’important est que votre implémentation se rapproche du standard 5G NR et que vous puissiez justifier les changements apportés.
+
 
 	
