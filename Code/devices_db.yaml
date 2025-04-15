@@ -1,7 +1,7 @@
 ANTENNAS:
   Antenna1:
     type: antenna
-    name: XYZ21
+    name: FR1
     height: 10
     frequency:  28 #GHz
     gain:  40
@@ -54,15 +54,32 @@ UES:
     app: Streaming4k
     height: 1.5
     R: 2000 #kbps
+    inter_distribution: exponential #pour les temps d'arrivée
+    inter_mean_ms: 200          # Temps moyen d'inter-arrivée en millisecondes
+    length_distribution: uniform #pour la longueur des packets
+    base_bits: 400000     # Longueur moyenne du paquet en bits
+    variability: 0.20     # Variabilité de ±20%
 
   UE2-App2:
     type: ue
     app: Drone
     height: 1.5
     R: 3 #kbps
-    
+    inter_distribution: uniform #pour les temps d'arrivée
+    inter_min_ms: 30          # Temps min d'inter-arrivée en millisecondes
+    inter_max_ms: 40          # Temps max d'inter-arrivée en millisecondes
+    length_distribution: uniform #pour la longueur des packets
+    base_bits: 100     # Longueur moyenne du paquet en bits
+    variability: 0.05     # Variabilité de ±20%
+
   UE3-App3:
     type: ue
     app: Auto_detect
     height: 1.5
     R: 0.1 #kbps
+    inter_distribution: uniform #pour les temps d'arrivée
+    inter_min_ms: 700          # Temps min d'inter-arrivée en millisecondes
+    inter_max_ms: 1300          # Temps max d'inter-arrivée en millisecondes
+    length_distribution: uniform #pour la longueur des packets
+    base_bits: 100     # Longueur moyenne du paquet en bits
+    variability: 0.05     # Variabilité de ±20%

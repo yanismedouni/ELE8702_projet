@@ -841,6 +841,8 @@ def ERROR(msg , code = 1):
 
 ## NEW PROJECT FUNCTIONS ##
 
+## TO DO : rajouter fonction find_pl_extremes
+
 def pathloss_to_cqi(pathloss, frequency_range):
     """
     Map pathloss to CQI with proper handling of edge cases
