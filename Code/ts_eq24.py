@@ -5,7 +5,7 @@ import sys
 import math
 import yaml
 import random
-import simpy
+#import simpy
 import os
 import pathloss_3gpp_eq24
 import matplotlib.pyplot as plt
@@ -579,6 +579,7 @@ def read_segment_file(fname):
     return segments
 
     
+    #Do not use this function because R has been removed
 def generate_ue_transmission(data_case,devices,ues,antennas):
     tstart = data_case["ETUDE_DE_TRANSMISSION"]["CLOCK"]["tstart"]
     tfinal = data_case["ETUDE_DE_TRANSMISSION"]["CLOCK"]["tfinal"]
@@ -839,9 +840,16 @@ def ERROR(msg , code = 1):
     print(f"\n\texit code = {code}\n\n\t\n")
     sys.exit(code)
 
-## NEW PROJECT FUNCTIONS ##
-
-## TO DO : rajouter fonction find_pl_extremes
+def findMinMaxPathloss(plFileName):
+    min_val=math.inf
+    max_val=0
+    with open(plFileName, "r") as f:
+        for line in f:
+            parts = line.strip().split()
+            value = float(parts[2])
+            min_val = min(min_val, value)
+            max_val = max(max_val, value)
+    return (min_val,max_val)
 
 def pathloss_to_cqi(pathloss, frequency_range):
     """
@@ -862,6 +870,7 @@ def pathloss_to_cqi(pathloss, frequency_range):
     if pathloss <= 0 or pathloss < 30:
         return 15  # Best quality
     
+    (minPl,maxPl) = findMinMaxPathloss("ts_eq24_pl.txt")
     # Define thresholds based on frequency range
     if frequency_range == 'FR1':
         # Thresholds, not sure which values to change exactly
@@ -932,36 +941,20 @@ def calculate_resource_blocks(bandwidth_mhz, subcarrier_spacing_khz):
     
     return num_rbs
 
-
 def main(args):
-
     random.seed(123)
+
     data_case = read_yaml_file(treat_cli_args(args))
+
     model = data_case["ETUDE_DE_TRANSMISSION"]["PATHLOSS"]["model"]
     devices = read_yaml_file("devices_db.yaml")
-    
+
     [antennas,ues] = lab3(data_case,devices)
 
     if("write" in data_case["ETUDE_DE_TRANSMISSION"]["COORD_FILES"]):
         create_text_file(data_case["ETUDE_DE_TRANSMISSION"]["COORD_FILES"]["write"], antennas,ues)
     else:
-        if(model == "okumura" or model == "3gpp"):
-            (antennas,ues) = read_coord_file(data_case,devices)
-            verify_equipment_validty(data_case,devices,ues,antennas)
-            pathlosses = generate_pathlosses(data_case,ues,antennas)
-            create_pathloss_file(data_case,ues,antennas,pathlosses)
-            create_assoc_files(data_case,ues,antennas,pathlosses)
-
-            (ue_data_frames,antenna_data_frames) = generate_ue_transmission(data_case,devices,ues,antennas)
-
-            tstart = data_case["ETUDE_DE_TRANSMISSION"]["CLOCK"]["tstart"]
-            tfinal = data_case["ETUDE_DE_TRANSMISSION"]["CLOCK"]["tfinal"]
-            dt = data_case["ETUDE_DE_TRANSMISSION"]["CLOCK"]["dt"]
-            
-            plot_transmissions(ue_data_frames, antenna_data_frames, tstart, tfinal , dt, ues, antennas)
-        else:
-            msg = f"Model name {model} is not available (only \"okumura\" and \"3gpp\" supported)"
-            ERROR(msg, 1)
+        pass
 
 if __name__ == '__main__':
     main(sys.argv[1:])
