@@ -68,7 +68,8 @@ UES:
     type: ue
     app: Streaming4k
     height: 1.5
-    inter_distribution: exponential #pour les temps d'arrivée
+    #I assume, for now, that the distributions types cant be changeed
+    #inter_distribution: exponential #pour les temps d'arrivée
     inter_mean_ms: 200          # Temps moyen d'inter-arrivée en millisecondes
     length_distribution: uniform #pour la longueur des packets
     base_bits: 400000     # Longueur moyenne du paquet en bits
@@ -78,7 +79,7 @@ UES:
     type: ue
     app: Drone
     height: 1.5
-    inter_distribution: uniform #pour les temps d'arrivée
+    #inter_distribution: uniform #pour les temps d'arrivée
     inter_min_ms: 30          # Temps min d'inter-arrivée en millisecondes
     inter_max_ms: 40          # Temps max d'inter-arrivée en millisecondes
     length_distribution: uniform #pour la longueur des packets
@@ -89,7 +90,7 @@ UES:
     type: ue
     app: Auto_detect
     height: 1.5
-    inter_distribution: uniform #pour les temps d'arrivée
+    #inter_distribution: uniform #pour les temps d'arrivée
     inter_min_ms: 700          # Temps min d'inter-arrivée en millisecondes
     inter_max_ms: 1300          # Temps max d'inter-arrivée en millisecondes
     length_distribution: uniform #pour la longueur des packets

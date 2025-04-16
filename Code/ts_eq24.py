@@ -866,7 +866,7 @@ def pathloss_to_cqi(pathloss):
     index = int((pathloss - minPl) / step)
     return num_bins - index
 
-def generate_arrival_times(tfinal, inter_mean_ms):
+def generate_expo_inter_arrivals(tfinal, inter_mean_ms):
     inter_mean_s = inter_mean_ms / 1000.0
     inter_arrivals = []
     total_time = 0.0
@@ -879,12 +879,51 @@ def generate_arrival_times(tfinal, inter_mean_ms):
         else:
             break
 
-    return np.cumsum(inter_arrivals)
+    return inter_arrivals
 
-def generate_packet_lengths(num_packets, base_length, variation):
-    min_len = base_length * (1 - variation)
-    max_len = base_length * (1 + variation)
-    return [random.uniform(min_len, max_len) for _ in range(num_packets)]
+import random
+
+def generate_uniform_inter_arrivals(tfinal, min_ms, max_ms):
+    min_s = min_ms / 1000.0  # convert to seconds
+    max_s = max_ms / 1000.0
+    inter_arrivals = []
+    total_time = 0.0
+
+    while total_time < tfinal:
+        interval = random.uniform(min_s, max_s)
+        total_time += interval
+        if total_time <= tfinal:
+            inter_arrivals.append(interval)
+        else:
+            break
+
+    return inter_arrivals
+
+def generate_packet_length_and_arrivals(data_case,devices):
+    tfinal = data_case["ETUDE_DE_TRANSMISSION"]["CLOCK"]["tfinal"]
+
+    inter_arrival_mean_app1 = devices["UES"]["UE1-App1"]["inter_mean_ms"]
+    length_mean_app1 = devices["UES"]["UE1-App1"]["base_bits"]
+    bits_var_app1 = devices["UES"]["UE1-App1"]["variability"]
+
+    inter_arrival_min_app2 = devices["UES"]["UE2-App2"]["inter_min_ms"]
+    inter_arrival_max_app2 = devices["UES"]["UE2-App2"]["inter_max_ms"]
+    length_mean_app2 = devices["UES"]["UE2-App2"]["base_bits"]
+    bits_var_app2 = devices["UES"]["UE2-App2"]["variability"]
+
+    inter_arrival_min_app3 = devices["UES"]["UE3-App3"]["inter_min_ms"]
+    inter_arrival_max_app3 = devices["UES"]["UE3-App3"]["inter_max_ms"]
+    length_mean_app3 = devices["UES"]["UE3-App3"]["base_bits"]
+    bits_var_app3 = devices["UES"]["UE3-App3"]["variability"]
+
+    arrival_times_app1 = np.cumsum(generate_expo_inter_arrivals(tfinal, inter_arrival_mean_app1))
+    arrival_times_app2 = np.cumsum(generate_uniform_inter_arrivals(tfinal, inter_arrival_min_app2, inter_arrival_max_app2))
+    arrival_times_app3 = np.cumsum(generate_uniform_inter_arrivals(tfinal, inter_arrival_min_app3, inter_arrival_max_app3))
+    packet_lengths_app1 =  [int(random.uniform(length_mean_app1-bits_var_app1*length_mean_app1, length_mean_app1+bits_var_app1*length_mean_app1)) for _ in range(len(arrival_times_app1))]
+    packet_lengths_app2 = [int(random.uniform(length_mean_app2-bits_var_app2*length_mean_app2, length_mean_app2+bits_var_app2*length_mean_app2)) for _ in range(len(arrival_times_app2))]
+    packet_lengths_app3 = [int(random.uniform(length_mean_app3-bits_var_app3*length_mean_app3, length_mean_app3+bits_var_app3*length_mean_app3)) for _ in range(len(arrival_times_app3))]
+
+    return (arrival_times_app1,arrival_times_app2,arrival_times_app3,packet_lengths_app1,packet_lengths_app2,packet_lengths_app3)
 
 def get_efficiency_from_cqi(cqi):
 
@@ -955,14 +994,7 @@ def main(args):
     if("write" in data_case["ETUDE_DE_TRANSMISSION"]["COORD_FILES"]):
         create_text_file(data_case["ETUDE_DE_TRANSMISSION"]["COORD_FILES"]["write"], antennas,ues)
     else:
-        tstart = data_case["ETUDE_DE_TRANSMISSION"]["CLOCK"]["tstart"]
-        tfinal = data_case["ETUDE_DE_TRANSMISSION"]["CLOCK"]["tfinal"]
-        dt = data_case["ETUDE_DE_TRANSMISSION"]["CLOCK"]["dt"]
-
-        arrival_times_app1 = generate_arrival_times(tfinal, devices["UES"]["UE1-App1"]["inter_mean_ms"])
-
-        packet_lengths_app1 = generate_packet_lengths(len(arrival_times_app1), 40000, 0.2)
-
+        (arrival_times_app1,arrival_times_app2,arrival_times_app3,packet_lengths_app1,packet_lengths_app2,packet_lengths_app3) = generate_packet_length_and_arrivals(data_case,devices)
 
 
 if __name__ == '__main__':
