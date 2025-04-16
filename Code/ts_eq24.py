@@ -474,6 +474,28 @@ def compute_antenna_load_weights(antennas, ues):
 
     return antenna_weights
 
+def assign_rb_proportionally(total_nrb, antenna_weights, antennas):
+    total_weight = sum(antenna_weights.values())
+    # Étape 1 : Attribution initiale proportionnelle
+    nrb_alloc = {}
+    used_rb = 0
+    for antenna in antennas:
+        weight = antenna_weights.get(antenna.id, 0)
+        nrb = int((weight / total_weight) * total_nrb)
+        nrb_alloc[antenna.id] = nrb
+        used_rb += nrb
+
+    # Étape 2 : Distribuer les RB restants
+    remaining = total_nrb - used_rb
+    # Tri des antennes selon le poids (plus gros en premier)
+    sorted_ids = sorted(antenna_weights.keys(), key=lambda k: antenna_weights[k], reverse=True)
+
+    for i in range(remaining):
+        nrb_alloc[sorted_ids[i % len(sorted_ids)]] += 1
+
+    # Étape 3 : Affectation finale
+    for antenna in antennas:
+        antenna.nrb = nrb_alloc[antenna.id]
 
 
 def plot_transmissions(ue_data_frames, antenna_data_frames, tstart, tfinal, dt, ues, antennas, pdf_filename="ts_eq24_graphiques.pdf"):
