@@ -22,6 +22,7 @@ class Antenna:
         self.assoc_ues = []   # liste avec les id des UEs associés à l'antenne
         self.scenario = None  # pathloss scénario tel que lu du fichier de cas (str)
         self.gen = None       # type de géneration de coordonnées: 'g', 'a', etc. (str)
+        self.nrb = None       # Nombre de RB associé à l'antenne (int)
     
     def __repr__(self):
         return f"Antenna(id={self.id}, frequency={self.frequency}, height={self.height}, group={self.group}, coords={self.coords}, assoc_ues={self.assoc_ues}, scenario={self.scenario}, gen={self.gen})"
@@ -453,6 +454,27 @@ def get_nrb_from_bw_scs(bw_mhz, scs_khz):
                 ratio = (bw_mhz - min_bw) / (max_bw - min_bw)
                 return round(min_nrb + ratio * (max_nrb - min_nrb))
     return 0
+
+def compute_antenna_load_weights(antennas, ues):
+    # Débits moyens estimés (en bits par seconde)
+    group_weights = {
+        'UE1-App1': 2000000,   # Streaming 4K
+        'UE2-App2': 2857,       # Drone contrôle
+        'UE3-App3': 100          # Capteur automobile
+    }
+    antenna_weights = {}
+    for antenna in antennas:
+        total = 0
+        for ue_id in antenna.assoc_ues:
+            ue = next(u for u in ues if u.id == ue_id)
+            group = ue.group
+            poids = group_weights.get(group, 0)
+            total += poids
+        antenna_weights[antenna.id] = total
+
+    return antenna_weights
+
+
 
 def plot_transmissions(ue_data_frames, antenna_data_frames, tstart, tfinal, dt, ues, antennas, pdf_filename="ts_eq24_graphiques.pdf"):
     with PdfPages(pdf_filename) as pdf:
