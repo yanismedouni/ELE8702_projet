@@ -934,7 +934,11 @@ def main(args):
     if("write" in data_case["ETUDE_DE_TRANSMISSION"]["COORD_FILES"]):
         create_text_file(data_case["ETUDE_DE_TRANSMISSION"]["COORD_FILES"]["write"], antennas,ues)
     else:
-        pass
+        tstart = data_case["ETUDE_DE_TRANSMISSION"]["CLOCK"]["tstart"]
+        tfinal = data_case["ETUDE_DE_TRANSMISSION"]["CLOCK"]["tfinal"]
+        dt = data_case["ETUDE_DE_TRANSMISSION"]["CLOCK"]["dt"]
+
+        
 
 if __name__ == '__main__':
     main(sys.argv[1:])

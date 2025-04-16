@@ -33,7 +33,7 @@ ETUDE_DE_TRANSMISSION:
       read: ts_eq24_visibility.txt
    CLOCK : 
       tstart : 0.0
-      tfinal : 10.0 #ms 
-      dt : 1.0      #ms 
+      tfinal : 60000.0 #ms 
+      dt : 10.0      #ms 
       read : ts_eq24_segments.txt
       #write: time_segments_ts.txt
