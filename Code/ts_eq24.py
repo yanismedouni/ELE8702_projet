@@ -368,6 +368,31 @@ def read_segment_file(fname):
 
     return segments
 
+def generate_packets_auto(tstart, tfinal, n_packets=1000):
+    arrivals = np.sort(np.random.uniform(tstart, tfinal, size=n_packets))
+    sizes = np.random.uniform(95, 105, size=n_packets).astype(int)  # ±5%
+    return arrivals, sizes
+
+def generate_packets_drone(tstart, tfinal, n_packets=1000):
+    arrivals = []
+    time = tstart
+    while time < tfinal:
+        delta = np.random.uniform(30, 40) / 1000  # en secondes
+        time += delta
+        arrivals.append(time)
+    sizes = np.random.uniform(95, 105, size=len(arrivals)).astype(int)
+    return np.array(arrivals), sizes
+
+def generate_packets_streaming(tstart, tfinal, n_packets=1000):
+    arrivals = []
+    time = tstart
+    while time < tfinal:
+        delta = np.random.exponential(0.2)  # moyenne 200 ms
+        time += delta
+        arrivals.append(time)
+    sizes = np.random.uniform(320_000, 480_000, size=len(arrivals)).astype(int)
+    return np.array(arrivals), sizes
+
     
 def generate_ue_transmission(data_case,devices,ues,antennas):
     tstart = data_case["ETUDE_DE_TRANSMISSION"]["CLOCK"]["tstart"]
