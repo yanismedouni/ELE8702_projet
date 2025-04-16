@@ -851,40 +851,20 @@ def findMinMaxPathloss(plFileName):
             max_val = max(max_val, value)
     return (min_val,max_val)
 
-def pathloss_to_cqi(pathloss, frequency_range):
-    """
-    Map pathloss to CQI with proper handling of edge cases
+def pathloss_to_cqi(pathloss):
     
-    Args:
-        pathloss: Path loss value in dB
-        frequency_range: 'FR1' or 'FR2'
-        
-    Returns:
-        CQI value (0-15)
-    """
-    # Handle infinite pathloss
-    if math.isinf(pathloss) or pathloss > 200:
-        return 0  # Out of range - no transmission
-        
-    # Handle zero or very low pathloss
-    if pathloss <= 0 or pathloss < 30:
-        return 15  # Best quality
-    
-    (minPl,maxPl) = findMinMaxPathloss("ts_eq24_pl.txt")
-    # Define thresholds based on frequency range
-    if frequency_range == 'FR1':
-        # Thresholds, not sure which values to change exactly
-        thresholds = [75, 80, 85, 90, 95, 100, 105, 110, 115, 120, 125, 130, 135, 140, 145]
-    else:  # FR2
-        # mmWave has worse penetration, so lower thresholds
-        thresholds = [65, 70, 75, 80, 85, 90, 95, 100, 105, 110, 115, 120, 125, 130, 135]
-    
-    # Map pathloss to CQI
-    for i, threshold in enumerate(thresholds):
-        if pathloss < threshold:
-            return 15 - i
-    
-    return 0  # Default to no transmission if above all thresholds
+    (minPl, maxPl) = findMinMaxPathloss("ts_eq24_pl.txt")
+
+    num_bins = 15
+    step = (maxPl - minPl) / num_bins
+
+    if pathloss < minPl:
+        return num_bins
+    if pathloss >= maxPl:
+        return 0
+
+    index = int((pathloss - minPl) / step)
+    return num_bins - index 
 
 def get_efficiency_from_cqi(cqi):
     """
