@@ -432,6 +432,28 @@ def compute_antenna_transmission(data_case,ue_data_frames,antennas,ues):
 
     return antenna_data_frames
 
+def get_nrb_from_bw_scs(bw_mhz, scs_khz):
+    table = {
+        15: [(4.32, 24), (49.5, 275)],
+        30: [(8.64, 24), (99, 275)],
+        60: [(17.28, 24), (198, 275)],
+        120: [(34.56, 24), (396, 275)],
+        240: [(69.12, 24), (397.44, 138)]
+    }
+    for scs, limits in table.items():
+        if scs_khz == scs:
+            min_bw, min_nrb = limits[0]
+            max_bw, max_nrb = limits[1]
+            if bw_mhz <= min_bw:
+                return min_nrb
+            elif bw_mhz >= max_bw:
+                return max_nrb
+            else:
+                # Interpolation linéaire simple
+                ratio = (bw_mhz - min_bw) / (max_bw - min_bw)
+                return round(min_nrb + ratio * (max_nrb - min_nrb))
+    return 0
+
 def plot_transmissions(ue_data_frames, antenna_data_frames, tstart, tfinal, dt, ues, antennas, pdf_filename="ts_eq24_graphiques.pdf"):
     with PdfPages(pdf_filename) as pdf:
         ue_data_frames = np.array(ue_data_frames)
