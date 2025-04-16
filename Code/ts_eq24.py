@@ -864,9 +864,30 @@ def pathloss_to_cqi(pathloss):
         return 0
 
     index = int((pathloss - minPl) / step)
-    return num_bins - index 
+    return num_bins - index
+
+def generate_arrival_times(tfinal, inter_mean_ms):
+    inter_mean_s = inter_mean_ms / 1000.0
+    inter_arrivals = []
+    total_time = 0.0
+
+    while total_time < tfinal:
+        interval = random.expovariate(1.0 / inter_mean_s)
+        total_time += interval
+        if total_time <= tfinal:
+            inter_arrivals.append(interval)
+        else:
+            break
+
+    return np.cumsum(inter_arrivals)
+
+def generate_packet_lengths(num_packets, base_length, variation):
+    min_len = base_length * (1 - variation)
+    max_len = base_length * (1 + variation)
+    return [random.uniform(min_len, max_len) for _ in range(num_packets)]
 
 def get_efficiency_from_cqi(cqi):
+
     """
     Get spectral efficiency from CQI based on 3GPP TS 38.214 Table 5.2.2.1-2
     
@@ -938,7 +959,11 @@ def main(args):
         tfinal = data_case["ETUDE_DE_TRANSMISSION"]["CLOCK"]["tfinal"]
         dt = data_case["ETUDE_DE_TRANSMISSION"]["CLOCK"]["dt"]
 
-        
+        arrival_times_app1 = generate_arrival_times(tfinal, devices["UES"]["UE1-App1"]["inter_mean_ms"])
+
+        packet_lengths_app1 = generate_packet_lengths(len(arrival_times_app1), 40000, 0.2)
+
+
 
 if __name__ == '__main__':
     main(sys.argv[1:])
