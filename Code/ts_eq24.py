@@ -1,440 +1,274 @@
 ## Écrire votre numéro d'équipe
 ## Érire les noms et matricules de chaque membre de l'équipe
 ## CECI EST OBLIGATOIRE
+
 import sys
 import math
 import yaml
 import random
-#import simpy
 import os
 import pathloss_3gpp_eq24
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.backends.backend_pdf import PdfPages
 
+##############################################
+#                 CLASSES                    #
+##############################################
+
 class Antenna:
-   def __init__(self, id):
-       self.id = id           # id de l'antenne (int)
-       self.frequency = None  # Fréquence de l'antenne en GHz
-       self.height = None     # Hauteur de l'antenne
-       self.group = None      # groupe défini dans la base de données (str)
-       self.coords = None     # tuple contenant les coordonnées (x,y) 
-       self.assoc_ues = []    # liste des ids des UEs associés à l'antenne
-       self.scenario = None   # scénario de pathloss tel que lu du fichier de cas (str)
-       self.gen = None        # type de génération de coordonnées: 'g', 'a', etc. (str)
-       self.packet_queue = [] # tampon pour les paquets en attente de traitement
-       self.all_packets = []  # liste de tous les paquets reçus
-       self.current_slot = None  # Slot courante
-       self.packets_this_slot = 0  # Paquets traités dans le slot courant
-       self.bits_this_slot = 0    # Bits traités dans le slot courant
-       self.scs = None        # Espacement des sous-porteuses (kHz)
-       self.n_rb = None       # Nombre de blocs de ressources
-           self.nrb = None       # Nombre de RB associé à l'antenne (int)
-    
-   def __repr__(self):
-       return f"Antenna(id={self.id}, freq={self.frequency}GHz, RBs={self.n_rb}, UEs={len(self.assoc_ues)})"
-   
-   def calculate_resource_blocks(self):
-    """
-    Détermine le nombre de RB (Ressource Blocks) disponibles en fonction
-    de la largeur de bande du canal et l'espacement entre sous-porteuses.
-    """
-    # Déterminer si nous sommes en FR1 ou FR2
-    is_fr2 = self.frequency > 6  # FR2 est au-dessus de 6 GHz
-    
-    # Largeur de bande par défaut selon la plage de fréquence
-    # Dans un cas réel, cela devrait être lu à partir de la configuration
-    if is_fr2:  # mmWave
-        bandwidth_mhz = 100  # FR2 typiquement utilise 100 MHz
-    else:
-        bandwidth_mhz = 20   # FR1 typiquement utilise 20 MHz
-    
-    # Les valeurs ci-dessous sont extraites directement des normes 3GPP:
-    # - TS 38.101-1 Table 5.3.2-1 pour FR1 (sub-6GHz)
-    # - TS 38.101-2 Table 5.3.2-1 pour FR2 (mmWave)
-    # Ces tableaux définissent le nombre exact de RBs pour chaque 
-    # combinaison de largeur de bande et d'espacement de sous-porteuses.
-    
-    if is_fr2:  # Fréquences mmWave
-        if self.scs == 60:
-            if bandwidth_mhz == 50:
-                self.n_rb = 66
-            elif bandwidth_mhz == 100:
-                self.n_rb = 132
-            elif bandwidth_mhz == 200:
-                self.n_rb = 264
-            else:
-                self.n_rb = 132  # Valeur par défaut
-        elif self.scs == 120:
-            if bandwidth_mhz == 50:
-                self.n_rb = 32
-            elif bandwidth_mhz == 100:
-                self.n_rb = 66
-            elif bandwidth_mhz == 200:
-                self.n_rb = 132
-            else:
-                self.n_rb = 66  # Valeur par défaut
-        else:
-            self.n_rb = 132  # Défaut
-            print(f"Avertissement: SCS {self.scs} non supporté pour FR2, utilisation de 132 RBs")
-    else:  # Fréquences sub-6GHz
-        if self.scs == 15:
-            if bandwidth_mhz == 5:
-                self.n_rb = 25
-            elif bandwidth_mhz == 10:
-                self.n_rb = 52
-            elif bandwidth_mhz == 20:
-                self.n_rb = 106
-            elif bandwidth_mhz == 40:
-                self.n_rb = 216
-            else:
-                self.n_rb = 106  # Défaut pour 20MHz
-        elif self.scs == 30:
-            if bandwidth_mhz == 5:
-                self.n_rb = 11
-            elif bandwidth_mhz == 10:
-                self.n_rb = 24
-            elif bandwidth_mhz == 20:
-                self.n_rb = 51
-            elif bandwidth_mhz == 40:
-                self.n_rb = 106
-            else:
-                self.n_rb = 51  # Défaut pour 20MHz
-        elif self.scs == 60:
-            if bandwidth_mhz == 10:
-                self.n_rb = 11
-            elif bandwidth_mhz == 20:
-                self.n_rb = 24
-            elif bandwidth_mhz == 40:
-                self.n_rb = 51
-            else:
-                self.n_rb = 24  # Défaut pour 20MHz
-        else:
-            self.n_rb = 106  # Défaut
-            print(f"Avertissement: SCS {self.scs} non supporté pour FR1, utilisation de 106 RBs")
-    
-    print(f"Antenne {self.id}: {self.n_rb} blocs de ressources alloués (SCS: {self.scs} kHz, Bande: {bandwidth_mhz} MHz)")
-           
+    def __init__(self, id):
+        self.id = id
+        self.frequency = None
+        self.height = None
+        self.group = None
+        self.coords = None
+        self.assoc_ues = []
+        self.scenario = None
+        self.gen = None
+        self.packet_queue = []
+        self.all_packets = []
+        self.current_slot = None
+        self.packets_this_slot = 0
+        self.bits_this_slot = 0
+        self.nrb = None
 
-   def receive_packet(self, env, packet):
-       """
-       Traite un paquet entrant
-       
-       Args:
-           env: Environnement SimPy
-           packet: Objet Packet à traiter
-       """
-       # Obtient l'UE qui a envoyé ce paquet
-       ue = packet.source
-       
-       # Calcule les ressources disponibles
-       overhead = 0  # Peut être 0, 6, 12, ou 18 (REs réservés)
-       n_RE = 12 * 14 - overhead  # 12 sous-porteuses × 14 symboles - overhead, eqn 1 de l'énoncé
-       n_RB = self.n_rb  # Nombre de blocs de ressources
-       
-       # Calcule le nombre maximum de bits d'information pouvant être transmis
-       if ue.eff is None:
-           # Défaut à une faible efficacité si non définie
-           ue.eff = 0.1523  # Équivalent à CQI 1
-           print(f"Avertissement: UE {ue.id} n'a pas d'efficacité définie, utilisation de la valeur par défaut")
-       
-       n_info = n_RB * n_RE * ue.eff  #eqn 2 de l'énoncé
-       
-       # Obtient le temps et le slot courants
-       active_time = env.now
-       dt = 1  # Durée d'un slot
-       active_slot = int(active_time / dt)
-       
-       # Si nous avons changé de slot, traite les paquets en file d'attente
-       if active_slot != self.current_slot:
-           self.current_slot = active_slot
-           bits_to_move = 0
-           pacs_to_move = 0
-           
-           # Calcule combien de paquets nous pouvons traiter dans ce slot
-           for pac in self.packet_queue:
-               if (pac.size + bits_to_move) <= n_info:
-                   bits_to_move += pac.size
-                   pacs_to_move += 1
-               else:
-                   break
-           
-           self.packets_this_slot = pacs_to_move
-           self.bits_this_slot = bits_to_move
-           
-           # Traite les paquets qui rentrent dans ce slot
-           if pacs_to_move > 0:
-               for pac in self.packet_queue[:pacs_to_move]:
-                   pac.timeRX = active_slot * dt
-                   self.all_packets.append(pac)
-               
-               # Retire les paquets traités de la file d'attente
-               self.packet_queue = self.packet_queue[pacs_to_move:]
-       
-       # Traite le paquet courant
-       if (self.bits_this_slot + packet.size) < n_info:
-           # S'il rentre dans le slot courant, traite immédiatement
-           self.bits_this_slot += packet.size
-           self.packets_this_slot += 1
-           packet.timeRX = env.now
-           self.all_packets.append(packet)
-       else:
-           # Sinon, le met en file d'attente pour plus tard
-           self.packet_queue.append(packet)
-
+    def __repr__(self):
+        return f"Antenna(id={self.id}, freq={self.frequency}GHz, RBs={self.nrb}, UEs={len(self.assoc_ues)})"
 
 class Packet:
-   def __init__(self, source, app, packet_id, packet_size, timeTX):
-       self.id = packet_id
-       self.size = packet_size
-       self.timeTX = timeTX  # Temps d'envoi du paquet
-       self.timeRX = None    # Temps de réception du paquet
-       self.app = app
-       self.source = source
+    def __init__(self, source, app, packet_id, packet_size, timeTX):
+        self.id = packet_id
+        self.size = packet_size
+        self.timeTX = timeTX
+        self.timeRX = None
+        self.app = app
+        self.source = source
 
 class UE:
-   def __init__(self, id, app_name):
-       self.id = id           # id de l'UE (int)
-       self.height = None     # Hauteur de l'UE
-       self.group = None      # groupe défini dans la base de données (str)
-       self.coords = None     # tuple contenant les coordonnées (x,y) 
-       self.app = app_name    # nom de l'application exécutée sur l'UE (str)
-       self.assoc_ant = None  # id de l'antenne associée à l'UE (int)
-       self.los = True        # LoS ou non (bool)
-       self.gen = None        # type de génération de coordonnées: 'g', 'a', etc. (str)
-       self.packets = []      # liste des paquets générés par cet UE
-       self.assoc_ant_pl = None  # Pathloss vers l'antenne associée
-       self.cqi = None        # Indicateur de Qualité du Canal
-       self.eff = None        # Efficacité spectrale
-       self.packet_generator = None  # Processus SimPy pour la génération de paquets
-   
-   def __repr__(self):
-       return f"UE(id={self.id}, app={self.app}, coords={self.coords}, ant={self.assoc_ant}, cqi={self.cqi})"
-   
-   def generate_packet(self, env, antennas):
-       """
-       Processus SimPy qui génère des paquets selon les caractéristiques de l'application
-       
-       Args:
-           env: Environnement SimPy
-           antennas: Liste de toutes les antennes dans la simulation
-       """
-       while True:
-           packet_id = len(self.packets)  # Génère un ID de paquet unique
-           
-           if self.app == "Streaming4k":
-               # Distribution exponentielle avec moyenne de 200ms
-               yield env.timeout(random.expovariate(1.0 / (200e-3)))
-               # Taille du paquet: 400 000 bits ±20%
-               packet_size = int(random.uniform(0.8 * 400000, 1.2 * 400000))
-               
-           elif self.app == "Drone":
-               # Distribution uniforme entre 30-40ms
-               yield env.timeout(random.uniform(30e-3, 40e-3))
-               # Taille du paquet: 100 bits ±5%
-               packet_size = int(random.uniform(0.95 * 100, 1.05 * 100))
-               
-           elif self.app == "Auto_detect":
-               # Distribution uniforme entre 700-1300ms
-               yield env.timeout(random.uniform(700e-3, 1300e-3))
-               # Taille du paquet: 100 bits ±5%
-               packet_size = int(random.uniform(0.95 * 100, 1.05 * 100))
-               
-           else:
-               raise ValueError(f"Type d'application inconnu: {self.app}")
-           
-           # Crée le paquet et l'ajoute à la liste des paquets de l'UE
-           packet = Packet(self, self.app, packet_id, packet_size, env.now)
-           self.packets.append(packet)
-           
-           # Envoie le paquet à l'antenne associée
-           if self.assoc_ant is not None and 0 <= self.assoc_ant < len(antennas):
-               antennas[self.assoc_ant].receive_packet(env, packet)
-           else:
-               print(f"Avertissement: UE {self.id} a une antenne associée invalide {self.assoc_ant}")
+    def __init__(self, id, app_name):
+        self.id = id
+        self.height = None
+        self.group = None
+        self.coords = None
+        self.app = app_name
+        self.assoc_ant = None
+        self.los = True
+        self.gen = None
+        self.packets = []
+        self.assoc_ant_pl = None
+        self.cqi = None
+        self.eff = None
+        self.packet_generator = None
 
+    def __repr__(self):
+        return f"UE(id={self.id}, app={self.app}, coords={self.coords}, ant={self.assoc_ant}, cqi={self.cqi})"
 
-def fill_up_the_lattice(N, lh, lv, nh, nv):
-    """Function appelée par get_rectangle_lattice_coords()"""
+##############################################
+#       PACKET GENERATION UTILITIES         #
+##############################################
 
-    def get_delta1d(L, n):
-        return L/(n + 1)
-
-    coords = []
-    deltav = get_delta1d(lv, nv)
-    deltah = get_delta1d(lh, nh)
-    line = 1
-    y = deltav
-    count = 0
-    while count < N:
-        if count + nh < N:
-            x = deltah
-            for  i in range(nh):
-                # Fill up the horizontal line
-                coords.append((x,y))
-                x = x + deltah
-                count += 1
-            line += 1
+def generate_expo_inter_arrivals(tfinal, inter_mean_ms):
+    inter_mean_s = inter_mean_ms / 1000.0
+    inter_arrivals = []
+    total_time = 0.0
+    while total_time < tfinal:
+        interval = random.expovariate(1.0 / inter_mean_s)
+        total_time += interval
+        if total_time <= tfinal:
+            inter_arrivals.append(interval)
         else:
-            deltah = get_delta1d(lh, N - count)
-            x = deltah
-            for i in range(N - count):
-                # Fill up the last horizontal line
-                coords.append((x,y))
-                x = x + deltah
-                count += 1
-            line += 1
-        y = y +deltav
-    return coords
+            break
+    return inter_arrivals
 
-def get_rectangle_lattice_coords(lh, lv, N, Np, nh, nv):
-    """Function appelee par gen_lattice_coords()"""
+def generate_uniform_inter_arrivals(tfinal, min_ms, max_ms):
+    min_s = min_ms / 1000.0
+    max_s = max_ms / 1000.0
+    inter_arrivals = []
+    total_time = 0.0
+    while total_time < tfinal:
+        interval = random.uniform(min_s, max_s)
+        total_time += interval
+        if total_time <= tfinal:
+            inter_arrivals.append(interval)
+        else:
+            break
+    return inter_arrivals
 
-    if Np > N:
-        coords = fill_up_the_lattice(N, lh, lv, nh, nv)
-    elif Np < N:
-        coords = fill_up_the_lattice(N, lh, lv, nh, nv + 1)
-    else:
-        coords = fill_up_the_lattice(N, lh, lv, nh, nv)
-    return coords
+def generate_packet_length_and_arrivals(data_case,devices):
+    tfinal = data_case["ETUDE_DE_TRANSMISSION"]["CLOCK"]["tfinal"]
+    inter_arrival_mean_app1 = devices["UES"]["UE1-App1"]["inter_mean_ms"]
+    length_mean_app1 = devices["UES"]["UE1-App1"]["base_bits"]
+    bits_var_app1 = devices["UES"]["UE1-App1"]["variability"]
 
-def gen_lattice_coords(terrain_shape: dict, N: int):
-    """Génère un ensemble de N coordonnées placées en grille 
-       sur un terrain rectangulaire
+    inter_arrival_min_app2 = devices["UES"]["UE2-App2"]["inter_min_ms"]
+    inter_arrival_max_app2 = devices["UES"]["UE2-App2"]["inter_max_ms"]
+    length_mean_app2 = devices["UES"]["UE2-App2"]["base_bits"]
+    bits_var_app2 = devices["UES"]["UE2-App2"]["variability"]
 
-       Args: terrain_shape: dictionary {'rectangle': {'length' : lh,
-                                                   'height' : lv}
-           lh and lv are given in the case file"""
+    inter_arrival_min_app3 = devices["UES"]["UE3-App3"]["inter_min_ms"]
+    inter_arrival_max_app3 = devices["UES"]["UE3-App3"]["inter_max_ms"]
+    length_mean_app3 = devices["UES"]["UE3-App3"]["base_bits"]
+    bits_var_app3 = devices["UES"]["UE3-App3"]["variability"]
 
-    shape = list(terrain_shape.keys())[0]
-    lh = terrain_shape[shape]['length']
-    lv = terrain_shape[shape]['height']
-    R = lv / lh    
-    nv = round(math.sqrt(N / R))
-    nh = round(R * nv)
-    Np = nh * nv
-    if shape.lower() == 'rectangle':
-        coords = get_rectangle_lattice_coords(lh, lv, N, Np, nh, nv)
-    else:
-        msg = [f"\tImproper shape ({shape}) used in the\n",
-                "\tgeneration of lattice coordinates.\n"
-                "\tValid values: ['rectangle']"]
-        ERROR(''.join(msg), 2)
-    return coords        
+    arrival_times_app1 = np.cumsum(generate_expo_inter_arrivals(tfinal, inter_arrival_mean_app1))
+    arrival_times_app2 = np.cumsum(generate_uniform_inter_arrivals(tfinal, inter_arrival_min_app2, inter_arrival_max_app2))
+    arrival_times_app3 = np.cumsum(generate_uniform_inter_arrivals(tfinal, inter_arrival_min_app3, inter_arrival_max_app3))
 
-def get_from_dict(key, data, res=None, curr_level = 1, min_level = 1):
-    """Fonction qui retourne la valeur de n'importe quel clé du dictionnaire
-       key: clé associé à la valeur recherchée
-       data: dictionnaire dans lequel il faut chercher
-       les autres sont des paramètres par défaut qu'il ne faut pas toucher"""
-    if res:
-        return res
-    if type(data) is not dict:
-        msg = f"get_from_dict() works with dicts and is receiving a {type(data)}"
-        ERROR(msg, 1)
-    else:
-        for k, v in data.items():
-            if k == key and curr_level >= min_level:
-                return data[k]
-            if type(v) is dict:
-                level = curr_level + 1
-                res = get_from_dict(key, v, res, level, min_level)
-    return res 
+    packet_lengths_app1 = [int(random.uniform(length_mean_app1-bits_var_app1*length_mean_app1, length_mean_app1+bits_var_app1*length_mean_app1)) for _ in range(len(arrival_times_app1))]
+    packet_lengths_app2 = [int(random.uniform(length_mean_app2-bits_var_app2*length_mean_app2, length_mean_app2+bits_var_app2*length_mean_app2)) for _ in range(len(arrival_times_app2))]
+    packet_lengths_app3 = [int(random.uniform(length_mean_app3-bits_var_app3*length_mean_app3, length_mean_app3+bits_var_app3*length_mean_app3)) for _ in range(len(arrival_times_app3))]
 
-def read_yaml_file(fname):
-    with open(fname,'r') as file:
-        return yaml.safe_load(file)
-    
-def read_coord_file(data_case,devices):
+    return (arrival_times_app1, arrival_times_app2, arrival_times_app3, packet_lengths_app1, packet_lengths_app2, packet_lengths_app3)
 
-    fname = data_case["ETUDE_DE_TRANSMISSION"]["COORD_FILES"]["read"]
 
-    if(os.path.isfile(os.path.join(os.getcwd(),fname))):
-        pass
-    else:
-        print(f"No coordinates file: \"{fname}\" found")
-        exit()
 
-    antennas = []
-    ues = []
+##############################################
+#       RESOURCE ALLOCATION FUNCTIONS       #
+##############################################
 
-    with open(fname,'r') as file:
-        for line in file:
-            elements = line.strip().split()
-            if(elements[0] == "antenna"):
-                antenna = Antenna(elements[1])
-                antenna.frequency = devices["ANTENNAS"][elements[2]]["frequency"]
-                antenna.height = devices["ANTENNAS"][elements[2]]["height"]
-                antenna.group = elements[2]
-                antenna.coords = (elements[3],elements[4])
-                antenna.scenario = data_case["ETUDE_DE_TRANSMISSION"]["PATHLOSS"]["scenario"]
-                antennas.append(antenna)
-            if(elements[0] == "ue"):
-                ue = UE(elements[1],elements[5])
-                ue.height = devices["UES"][elements[2]]["height"]
-                ue.group = elements[2]
-                ue.coords = (elements[3],elements[4])
-                ues.append(ue)
-    return (antennas, ues)
+def get_nrb_from_bw_scs(bw_mhz, scs_khz):
+    table = {
+        15: [(4.32, 24), (49.5, 275)],
+        30: [(8.64, 24), (99, 275)],
+        60: [(17.28, 24), (198, 275)],
+        120: [(34.56, 24), (396, 275)],
+        240: [(69.12, 24), (397.44, 138)]
+    }
+    for scs, limits in table.items():
+        if scs_khz == scs:
+            min_bw, min_nrb = limits[0]
+            max_bw, max_nrb = limits[1]
+            if bw_mhz <= min_bw:
+                return min_nrb
+            elif bw_mhz >= max_bw:
+                return max_nrb
+            else:
+                ratio = (bw_mhz - min_bw) / (max_bw - min_bw)
+                return round(min_nrb + ratio * (max_nrb - min_nrb))
+    return 0
 
-def verify_equipment_validty(data_case,devices,ues,antennas):
-    error_list = set()
+def compute_antenna_load_weights(antennas, ues):
+    group_weights = {
+        'UE1-App1': 2000000,
+        'UE2-App2': 2857,
+        'UE3-App3': 100
+    }
+    antenna_weights = {}
+    for antenna in antennas:
+        total = 0
+        for ue_id in antenna.assoc_ues:
+            ue = next(u for u in ues if u.id == ue_id)
+            group = ue.group
+            poids = group_weights.get(group, 0)
+            total += poids
+        antenna_weights[antenna.id] = total
+    return antenna_weights
 
-    model = data_case["ETUDE_DE_TRANSMISSION"]["PATHLOSS"]["model"]
-    scenario = data_case["ETUDE_DE_TRANSMISSION"]["PATHLOSS"]["scenario"]
+def assign_rb_proportionally(total_nrb, antenna_weights, antennas):
+    total_weight = sum(antenna_weights.values())
+    nrb_alloc = {}
+    used_rb = 0
+    for antenna in antennas:
+        weight = antenna_weights.get(antenna.id, 0)
+        nrb = int((weight / total_weight) * total_nrb)
+        nrb_alloc[antenna.id] = nrb
+        used_rb += nrb
+
+    remaining = total_nrb - used_rb
+    sorted_ids = sorted(antenna_weights.keys(), key=lambda k: antenna_weights[k], reverse=True)
+    for i in range(remaining):
+        nrb_alloc[sorted_ids[i % len(sorted_ids)]] += 1
 
     for antenna in antennas:
-        antenna_frequency = devices["ANTENNAS"][antenna.group]["frequency"]
-        antenna_height = devices["ANTENNAS"][antenna.group]["height"]
-        if( model == "okumura"):
-            if not(150 <= antenna_frequency*1000 <= 1500):
-                error_list.add(f"Antenna of group {antenna.group} does not respect okumura frequency condition (150 to 1500 MHz)")
-            if not(30 <= antenna_height <= 300):
-                error_list.add(f"Antenna of group {antenna.group} does not respect okumura height condition (30 to 300 m)")
-        elif ( model == "3gpp"):
-            if( scenario == "RMa"):
-                if not( 10 <= antenna_height <= 150):
-                    error_list.add(f"Antenna of group {antenna.group} does not respect 3gpp-RMa height condition (10 to 150 m)")
-                if not( 0.5 <= antenna_frequency <= 30):
-                    error_list.add(f"Antenna of group {antenna.group} does not respect 3gpp-RMa frequency condition (0.5 to 30 GHz)")
-            if( scenario == "UMa"):
-                if not( 0.5 <= antenna_frequency <= 100):
-                    error_list.add(f"Antenna of group {antenna.group} does not respect 3gpp-UMa frequency condition (0.5 to 100 GHz)")
-            if(scenario == "UMi"):   
-                if not( 0.5 <= antenna_frequency <= 100):
-                    error_list.add(f"Antenna of group {antenna.group} does not respect 3gpp-UMi frequency condition (0.5 to 100 GHz)")
-    for ue in ues:
-        ue_height = devices["UES"][ue.group]["height"]
-        if( model == "okumura"):
-            if not(1 <= ue_height <= 10):
-                error_list.add(f"UE of group {ue.group} does not respect okumura height condition (1 to 10 m)")
-        elif ( model == "3gpp"):
-            if (scenario == "RMa"):
-                if not( 1 <= ue_height <= 10):
-                    error_list.add(f"UE of group {ue.group} does not respect 3gpp-RMa height condition (1 to 10 m)")
-            if (scenario == "UMa"):
-                if not( 1.5 <= ue_height <= 22.5):
-                    error_list.add(f"UE of group {ue.group} does not respect 3gpp-UMa height condition (1.5 to 22.5 m)")
-            if (scenario == "UMi"):
-                if not( 1.5 <= ue_height <= 22.5):
-                    error_list.add(f"UE of group {ue.group} does not respect 3gpp-UMi height condition (1.5 to 22.5 m)")
-    if (len(error_list) > 0) :
-        print("\nList of errors regarding equipment validity depending on model:")
-        for error in error_list:
-            print(error)
-        exit() 
+        antenna.nrb = nrb_alloc[antenna.id]
+
+##############################################
+#         PATHLOSS COMPUTATION FUNCTIONS     #
+##############################################
+
+def findMinMaxPathloss(plFileName):
+    min_val = math.inf
+    max_val = 0
+    with open(plFileName, "r") as f:
+        for line in f:
+            parts = line.strip().split()
+            value = float(parts[2])
+            min_val = min(min_val, value)
+            max_val = max(max_val, value)
+    return (min_val, max_val)
+
+def pathloss_to_cqi(pathloss):
+    (minPl, maxPl) = findMinMaxPathloss("ts_eq24_pl.txt")
+    num_bins = 15
+    step = (maxPl - minPl) / num_bins
+    if pathloss < minPl:
+        return num_bins
+    if pathloss >= maxPl:
+        return 0
+    index = int((pathloss - minPl) / step)
+    return num_bins - index
+
+def define_los(filename, ue_id, antenna_id):
+    ue_id = int(ue_id)
+    antenna_id = int(antenna_id)
+    with open(filename, 'r') as file:
+        for line in file:
+            if line.strip():
+                parts = line.split()
+                if int(parts[0]) == ue_id and antenna_id in map(int, parts[1:]):
+                    return False
+    return True
+
+def get_efficiency_from_cqi(cqi):
+
+    """
+    Get spectral efficiency from CQI based on 3GPP TS 38.214 Table 5.2.2.1-2
+    
+    (to be added to the report: this table was chosen over the other tables because it's the 
+    standard table used in 5G NR implementations;
+    It provides a good balance between robustness and throughput;
+    Using a single table will make it easier to compare performance across different applications)
+
+    Args:
+        cqi: Channel Quality Indicator (0-15)
+        
+    Returns:
+        Spectral efficiency
+    """
+    # CQI to efficiency mapping based on Table 5.2.2.1-2
+    efficiency_table = {
+        0: 0.0,    # Out of range - no transmission
+        1: 0.1523, # QPSK, code rate 78/1024
+        2: 0.2344, # QPSK, code rate 120/1024
+        3: 0.3770, # QPSK, code rate 193/1024
+        4: 0.6016, # QPSK, code rate 308/1024
+        5: 0.8770, # QPSK, code rate 449/1024
+        6: 1.1758, # QPSK, code rate 602/1024
+        7: 1.4766, # 16QAM, code rate 378/1024
+        8: 1.9141, # 16QAM, code rate 490/1024
+        9: 2.4063, # 16QAM, code rate 616/1024
+        10: 2.7305, # 64QAM, code rate 466/1024
+        11: 3.3223, # 64QAM, code rate 567/1024
+        12: 3.9023, # 64QAM, code rate 666/1024
+        13: 4.5234, # 64QAM, code rate 772/1024
+        14: 5.1152, # 64QAM, code rate 873/1024
+        15: 5.5547  # 64QAM, code rate 948/1024
+    }
+    
+    # Return the efficiency for the given CQI, or 0.0 if CQI is invalid
+    return efficiency_table.get(cqi, 0.0)
 
 def okumura(scenario, frequency, distance, antenna_height, UE_height):
     if distance < 1:
         return 0
     if distance > 20:
         return math.inf
-    # Constantes pour les corrections selon le scénario
     if scenario == "urban_small":
         correction_factor = 0
     elif scenario == "urban_large":
         correction_factor = -(-(1.1 * math.log10(frequency) - 0.7) * UE_height + (1.56 * math.log10(frequency) - 0.8))
-        if(frequency <= 300):
+        if frequency <= 300:
             correction_factor -= 8.29*(math.log10(1.54*UE_height))**2 -1.1
         else:
             correction_factor -= 3.2*(math.log10(11.75*UE_height))**2 -4.97
@@ -444,54 +278,23 @@ def okumura(scenario, frequency, distance, antenna_height, UE_height):
         correction_factor = -4.78 * (math.log10(frequency))**2 + 18.33 * math.log10(frequency) - 40.94
     else:
         raise ValueError("Scénario inconnu. Choisissez parmi: urban_large, urban_small, suburban, open.")
-
-    # Modèle de base pour les grandes villes
     A = 69.55 + 26.16 * math.log10(frequency) - 13.82 * math.log10(antenna_height)
     B = (44.9 - 6.55 * math.log10(antenna_height)) * math.log10(distance)
     C = correction_factor
-
     pathloss = A + B + C - (1.1 * math.log10(frequency) - 0.7) * UE_height + (1.56 * math.log10(frequency) - 0.8)
     return pathloss
 
-def define_los(filename, ue_id, antenna_id):
-    ue_id = int(ue_id)
-    antenna_id = int(antenna_id)
-    with open(filename, 'r') as file:
-        for line in file:
-            if line.strip():  # Skip empty lines
-                parts = line.split()
-                first_column = int(parts[0])
-                
-                if first_column == ue_id:
-                    # Check if the second number exists in the rest of the line
-                    rest_of_line = map(int, parts[1:])  # Convert to integers
-                    if antenna_id in rest_of_line:
-                        return False
-    return True
-
 def threegpp(scenario, frequency, distance, antenna_height, UE_height, ue_id, antenna_id, visibility_file_name):
     los = define_los(visibility_file_name, ue_id, antenna_id)
-    if(scenario == "RMa"):
-        if(los):
-            pathloss = pathloss_3gpp_eq24.rma_los(frequency,distance,antenna_height,UE_height)
-        else:
-            pathloss = pathloss_3gpp_eq24.rma_nlos(frequency,distance,antenna_height,UE_height)
-    elif(scenario == "UMa"):
-        if(los):
-            pathloss = pathloss_3gpp_eq24.uma_los(frequency,distance,antenna_height,UE_height)
-        else:
-            pathloss = pathloss_3gpp_eq24.uma_nlos(frequency,distance,antenna_height,UE_height)
-    elif(scenario == "UMi"):
-        if(los):
-            pathloss = pathloss_3gpp_eq24.umi_los(frequency,distance,antenna_height,UE_height)
-        else:
-            pathloss = pathloss_3gpp_eq24.umi_nlos(frequency,distance,antenna_height,UE_height)
+    if scenario == "RMa":
+        return pathloss_3gpp_eq24.rma_los(frequency, distance, antenna_height, UE_height) if los else pathloss_3gpp_eq24.rma_nlos(frequency, distance, antenna_height, UE_height)
+    elif scenario == "UMa":
+        return pathloss_3gpp_eq24.uma_los(frequency, distance, antenna_height, UE_height) if los else pathloss_3gpp_eq24.uma_nlos(frequency, distance, antenna_height, UE_height)
+    elif scenario == "UMi":
+        return pathloss_3gpp_eq24.umi_los(frequency, distance, antenna_height, UE_height) if los else pathloss_3gpp_eq24.umi_nlos(frequency, distance, antenna_height, UE_height)
     else:
-        msg = f"Scenario name {scenario} is not available (RMa, UMa or UMi)"
-        ERROR(msg, 1)
-    return pathloss
-
-
+        raise ValueError(f"Scenario name {scenario} is not available (RMa, UMa or UMi)")
+    
 def generate_pathlosses(data_case,ues,antennas):
     num_ues = len(ues)
     num_antennas = len(antennas)
@@ -515,6 +318,44 @@ def generate_pathlosses(data_case,ues,antennas):
                 visibility_file_name = data_case["ETUDE_DE_TRANSMISSION"]["VISIBILITY"]["read"]
                 pathlosses[int(ue.id)][int(antenna.id)]=threegpp(scenario, frequency, distance, antenna_height, UE_height, ue.id, antenna.id, visibility_file_name)
     return pathlosses
+
+##############################################
+#             FILE FUNCTIONS              #
+##############################################
+
+def get_from_dict(key, data, res=None, curr_level=1, min_level=1):
+    if res:
+        return res
+    if type(data) is not dict:
+        msg = f"get_from_dict() works with dicts and is receiving a {type(data)}"
+        ERROR(msg, 1)
+    else:
+        for k, v in data.items():
+            if k == key and curr_level >= min_level:
+                return data[k]
+            if type(v) is dict:
+                level = curr_level + 1
+                res = get_from_dict(key, v, res, level, min_level)
+    return res
+
+def read_yaml_file(fname):
+    with open(fname,'r') as file:
+        return yaml.safe_load(file)
+
+def read_segment_file(fname):
+    segments = []
+    with open(fname,'r') as file:
+        for line in file:
+            elements = line.strip().split()
+            segments.append([int(elements[0]),float(elements[1]),float(elements[2])])
+    return segments
+
+def ERROR(msg , code = 1):
+    print("\n\n\nERROR\nPROGRAM STOPPED!!!\n")
+    if msg:
+        print(msg)
+    print(f"\n\texit code = {code}\n\n\t\n")
+    sys.exit(code)
 
 # Fonction pour créer le fichier de pathloss ts_eq24_pl.txt
 def create_pathloss_file(data_case, ues, antennas, pathlosses):
@@ -558,182 +399,113 @@ def create_assoc_files(data_case, ues, antennas,pathlosses):
         for ue in ues:
             file.write(f"{ue.id} {ue.assoc_ant}\n")
 
+def create_text_file(coord_file_name,antennas,ues):
+    with open(coord_file_name,"w") as file:
+        for antenna_index in range(len(antennas)):
+            file.write(f"antenna {antenna_index}\t")
+            file.write(f"{antennas[antenna_index].group}\t")
+            file.write(f"{antennas[antenna_index].coords[0]:.1f}\t")
+            file.write(f"{antennas[antenna_index].coords[1]:.1f}\t\n")
+        for ue_index in range(len(ues)):
+            file.write(f"ue     \t{ue_index}\t")
+            file.write(f"{ues[ue_index].group}\t")
+            file.write(f"{ues[ue_index].coords[0]:.1f}\t")
+            file.write(f"{ues[ue_index].coords[1]:.1f}\t")
+            file.write(f"{ues[ue_index].app}\n")
+
+def read_coord_file(data_case,devices):
+
+    fname = data_case["ETUDE_DE_TRANSMISSION"]["COORD_FILES"]["read"]
+
+    if(os.path.isfile(os.path.join(os.getcwd(),fname))):
+        pass
+    else:
+        print(f"No coordinates file: \"{fname}\" found")
+        exit()
+
+    antennas = []
+    ues = []
+
+    with open(fname,'r') as file:
+        for line in file:
+            elements = line.strip().split()
+            if(elements[0] == "antenna"):
+                antenna = Antenna(elements[1])
+                antenna.frequency = devices["ANTENNAS"][elements[2]]["frequency"]
+                antenna.height = devices["ANTENNAS"][elements[2]]["height"]
+                antenna.group = elements[2]
+                antenna.coords = (elements[3],elements[4])
+                antenna.scenario = data_case["ETUDE_DE_TRANSMISSION"]["PATHLOSS"]["scenario"]
+                antennas.append(antenna)
+            if(elements[0] == "ue"):
+                ue = UE(elements[1],elements[5])
+                ue.height = devices["UES"][elements[2]]["height"]
+                ue.group = elements[2]
+                ue.coords = (elements[3],elements[4])
+                ues.append(ue)
+    return (antennas, ues)
+
+##############################################
+#           COORDINATES FUNCTIONS            #
+##############################################
+
 def gen_random_coords(terrain_shape: dict, n):
-    # Cette fonction doit générer les coordonées pour le cas de positionnement aléatoire
-    # TODO
     shape = list(terrain_shape.keys())[0]
     length = terrain_shape[shape]['length']
     height = terrain_shape[shape]['height']
     coords = []
     for _ in range(n):
-        coords.append([random.uniform(0,length),random.uniform(0,height)])
+        coords.append([random.uniform(0, length), random.uniform(0, height)])
     return coords
 
-def read_segment_file(fname):
-    segments = []
+def fill_up_the_lattice(N, lh, lv, nh, nv):
+    def get_delta1d(L, n):
+        return L / (n + 1)
 
-    with open(fname,'r') as file:
-        for line in file:
-            elements = line.strip().split()
-            segments.append([int(elements[0]),float(elements[1]),float(elements[2])])
+    coords = []
+    deltav = get_delta1d(lv, nv)
+    deltah = get_delta1d(lh, nh)
+    y = deltav
+    count = 0
+    while count < N:
+        x = deltah
+        current_nh = nh if count + nh <= N else N - count
+        for _ in range(current_nh):
+            coords.append((x, y))
+            x += deltah
+            count += 1
+        y += deltav
+    return coords
 
-    return segments
+def get_rectangle_lattice_coords(lh, lv, N, Np, nh, nv):
+    if Np > N:
+        coords = fill_up_the_lattice(N, lh, lv, nh, nv)
+    elif Np < N:
+        coords = fill_up_the_lattice(N, lh, lv, nh, nv + 1)
+    else:
+        coords = fill_up_the_lattice(N, lh, lv, nh, nv)
+    return coords
 
-def generate_packets_auto(tstart, tfinal, n_packets=1000):
-    arrivals = np.sort(np.random.uniform(tstart, tfinal, size=n_packets))
-    sizes = np.random.uniform(95, 105, size=n_packets).astype(int)  # ±5%
-    return arrivals, sizes
+def gen_lattice_coords(terrain_shape: dict, N: int):
+    shape = list(terrain_shape.keys())[0]
+    lh = terrain_shape[shape]['length']
+    lv = terrain_shape[shape]['height']
+    R = lv / lh
+    nv = round(math.sqrt(N / R))
+    nh = round(R * nv)
+    Np = nh * nv
+    if shape.lower() == 'rectangle':
+        coords = get_rectangle_lattice_coords(lh, lv, N, Np, nh, nv)
+    else:
+        msg = [f"\tImproper shape ({shape}) used in the\n",
+               "\tgeneration of lattice coordinates.\n",
+               "\tValid values: ['rectangle']"]
+        ERROR(''.join(msg), 2)
+    return coords
 
-def generate_packets_drone(tstart, tfinal, n_packets=1000):
-    arrivals = []
-    time = tstart
-    while time < tfinal:
-        delta = np.random.uniform(30, 40) / 1000  # en secondes
-        time += delta
-        arrivals.append(time)
-    sizes = np.random.uniform(95, 105, size=len(arrivals)).astype(int)
-    return np.array(arrivals), sizes
-
-def generate_packets_streaming(tstart, tfinal, n_packets=1000):
-    arrivals = []
-    time = tstart
-    while time < tfinal:
-        delta = np.random.exponential(0.2)  # moyenne 200 ms
-        time += delta
-        arrivals.append(time)
-    sizes = np.random.uniform(320_000, 480_000, size=len(arrivals)).astype(int)
-    return np.array(arrivals), sizes
-
-    
-    #Do not use this function because R has been removed
-def generate_ue_transmission(data_case,devices,ues,antennas):
-    tstart = data_case["ETUDE_DE_TRANSMISSION"]["CLOCK"]["tstart"]
-    tfinal = data_case["ETUDE_DE_TRANSMISSION"]["CLOCK"]["tfinal"]
-    dt = data_case["ETUDE_DE_TRANSMISSION"]["CLOCK"]["dt"]
-    numTicks = int((tfinal - tstart)/dt)
-
-    ue_data_frames = [[0 for _ in range(numTicks)] for _ in range(len(ues))]
-    antenna_data_frames = [[0 for _ in range(numTicks)] for _ in range(len(antennas))]
-
-    segment_file_name = data_case["ETUDE_DE_TRANSMISSION"]["CLOCK"]["read"]
-
-    segments = read_segment_file(segment_file_name)
-
-    for tick in range(1,numTicks+1):
-        for segment_line_index in range(len(segments)):
-            ue_id = segments[segment_line_index][0]
-            start = segments[segment_line_index][1]
-            end = segments[segment_line_index][2]
-            ue_R = devices["UES"][ues[ue_id].group]["R"]
-
-            if  start > dt*(tick-1) and start < tick*dt:
-                if end < tick*dt: #segment started and ended between tick n and n-1
-                    ue_data_frames[ue_id][tick-1] += (end - start)*ue_R
-                elif end > tick*dt: #segment started between tick n and n-1 but did not end in said tick
-                    ue_data_frames[ue_id][tick-1] += ((tick*dt) - start)*ue_R
-            elif start < dt*(tick-1):
-                if end > dt*(tick-1) and end < tick*dt: #segment started before tick n-1 and stopped between tick n and n-1
-                    ue_data_frames[ue_id][tick-1] += (end - (dt*(tick-1)))*ue_R
-                elif end > tick*dt: #segement started before tick n-1 and will stop after tick n
-                    ue_data_frames[ue_id][tick-1] += ((tick*dt) - (dt*(tick-1)))*ue_R
-
-    with open("ts_eq24_transmission_ue.txt", "w") as file:
-        for ue in ues:
-            file.write(f"{ue.id}\n")
-            for tick in range(numTicks):
-                file.write(f"{float(tick)} {float(ue_data_frames[int(ue.id)][tick-1])}\n")
-
-    #compute the antenna tranmssions
-    for ue in ues:
-        for tick in range(1,numTicks+1):
-            antenna_data_frames[int(ue.assoc_ant)][tick-1] += ue_data_frames[int(ue.id)][tick-1]
-
-    with open("ts_eq24_transmission_ant.txt", "w") as file:
-        for antenna in antennas:
-            file.write(f"{antenna.id}\n")
-            for tick in range(numTicks):
-                file.write(f"{float(tick)}: {float(antenna_data_frames[int(antenna.id)][tick-1])}\n")
-
-    return ue_data_frames,antenna_data_frames
-
-def compute_antenna_transmission(data_case,ue_data_frames,antennas,ues):
-    tstart = data_case["ETUDE_DE_TRANSMISSION"]["CLOCK"]["tstart"]
-    tfinal = data_case["ETUDE_DE_TRANSMISSION"]["CLOCK"]["tfinal"]
-    dt = data_case["ETUDE_DE_TRANSMISSION"]["CLOCK"]["dt"]
-    numTicks = int((tfinal - tstart)/dt)
-
-    antenna_data_frames = [[0 for _ in range(numTicks)] for _ in range(len(antennas))]
-
-    for ue in ues:
-        for tick in range(1,numTicks+1):
-            antenna_data_frames[int(ue.assoc_ant)][tick-1] += ue_data_frames[int(ue.id)][tick-1]
-
-    return antenna_data_frames
-
-def get_nrb_from_bw_scs(bw_mhz, scs_khz):
-    table = {
-        15: [(4.32, 24), (49.5, 275)],
-        30: [(8.64, 24), (99, 275)],
-        60: [(17.28, 24), (198, 275)],
-        120: [(34.56, 24), (396, 275)],
-        240: [(69.12, 24), (397.44, 138)]
-    }
-    for scs, limits in table.items():
-        if scs_khz == scs:
-            min_bw, min_nrb = limits[0]
-            max_bw, max_nrb = limits[1]
-            if bw_mhz <= min_bw:
-                return min_nrb
-            elif bw_mhz >= max_bw:
-                return max_nrb
-            else:
-                # Interpolation linéaire simple
-                ratio = (bw_mhz - min_bw) / (max_bw - min_bw)
-                return round(min_nrb + ratio * (max_nrb - min_nrb))
-    return 0
-
-def compute_antenna_load_weights(antennas, ues):
-    # Débits moyens estimés (en bits par seconde)
-    group_weights = {
-        'UE1-App1': 2000000,   # Streaming 4K
-        'UE2-App2': 2857,       # Drone contrôle
-        'UE3-App3': 100          # Capteur automobile
-    }
-    antenna_weights = {}
-    for antenna in antennas:
-        total = 0
-        for ue_id in antenna.assoc_ues:
-            ue = next(u for u in ues if u.id == ue_id)
-            group = ue.group
-            poids = group_weights.get(group, 0)
-            total += poids
-        antenna_weights[antenna.id] = total
-
-    return antenna_weights
-
-def assign_rb_proportionally(total_nrb, antenna_weights, antennas):
-    total_weight = sum(antenna_weights.values())
-    # Étape 1 : Attribution initiale proportionnelle
-    nrb_alloc = {}
-    used_rb = 0
-    for antenna in antennas:
-        weight = antenna_weights.get(antenna.id, 0)
-        nrb = int((weight / total_weight) * total_nrb)
-        nrb_alloc[antenna.id] = nrb
-        used_rb += nrb
-
-    # Étape 2 : Distribuer les RB restants
-    remaining = total_nrb - used_rb
-    # Tri des antennes selon le poids (plus gros en premier)
-    sorted_ids = sorted(antenna_weights.keys(), key=lambda k: antenna_weights[k], reverse=True)
-
-    for i in range(remaining):
-        nrb_alloc[sorted_ids[i % len(sorted_ids)]] += 1
-
-    # Étape 3 : Affectation finale
-    for antenna in antennas:
-        antenna.nrb = nrb_alloc[antenna.id]
-
+##############################################
+#             PLOTTING FUNCTIONS             #
+##############################################
 
 def plot_transmissions(ue_data_frames, antenna_data_frames, tstart, tfinal, dt, ues, antennas, pdf_filename="ts_eq24_graphiques.pdf"):
     with PdfPages(pdf_filename) as pdf:
@@ -758,7 +530,7 @@ def plot_transmissions(ue_data_frames, antenna_data_frames, tstart, tfinal, dt, 
         # Histogramme des bits reçus par antenne
         max_subplots = 3  
         num_antennas = len(antennas)
-        num_figures = (num_antennas + max_subplots - 1) // max_subplots  
+        num_figures = (num_antennas + max_subplots - 1) // max_subplots
 
         for fig_idx in range(num_figures):
             fig, axes = plt.subplots(min(max_subplots, num_antennas - fig_idx * max_subplots), 1, 
@@ -831,8 +603,120 @@ def plot_transmissions(ue_data_frames, antenna_data_frames, tstart, tfinal, dt, 
 
     print(f"Plots saved to {pdf_filename}")
 
+##############################################
+#           SIMULATION FUNCTIONS             #
+##############################################
 
-def lab3 (data_case,devices):
+def compute_antenna_transmission(data_case, ue_data_frames, antennas, ues):
+    tstart = data_case["ETUDE_DE_TRANSMISSION"]["CLOCK"]["tstart"]
+    tfinal = data_case["ETUDE_DE_TRANSMISSION"]["CLOCK"]["tfinal"]
+    dt = data_case["ETUDE_DE_TRANSMISSION"]["CLOCK"]["dt"]
+    numTicks = int((tfinal - tstart)/dt)
+
+    antenna_data_frames = [[0 for _ in range(numTicks)] for _ in range(len(antennas))]
+
+    for ue in ues:
+        for tick in range(1, numTicks + 1):
+            antenna_data_frames[int(ue.assoc_ant)][tick - 1] += ue_data_frames[int(ue.id)][tick - 1]
+
+    return antenna_data_frames
+
+def generate_ue_transmission(data_case, devices, ues, antennas):
+    tstart = data_case["ETUDE_DE_TRANSMISSION"]["CLOCK"]["tstart"]
+    tfinal = data_case["ETUDE_DE_TRANSMISSION"]["CLOCK"]["tfinal"]
+    dt = data_case["ETUDE_DE_TRANSMISSION"]["CLOCK"]["dt"]
+    numTicks = int((tfinal - tstart) / dt)
+
+    ue_data_frames = [[0 for _ in range(numTicks)] for _ in range(len(ues))]
+    antenna_data_frames = [[0 for _ in range(numTicks)] for _ in range(len(antennas))]
+
+    segment_file_name = data_case["ETUDE_DE_TRANSMISSION"]["CLOCK"]["read"]
+    segments = read_segment_file(segment_file_name)
+
+    for tick in range(1, numTicks + 1):
+        for segment in segments:
+            ue_id = segment[0]
+            start = segment[1]
+            end = segment[2]
+            ue_R = devices["UES"][ues[ue_id].group]["R"]
+
+            if start > dt * (tick - 1) and start < tick * dt:
+                if end < tick * dt:
+                    ue_data_frames[ue_id][tick - 1] += (end - start) * ue_R
+                elif end > tick * dt:
+                    ue_data_frames[ue_id][tick - 1] += ((tick * dt) - start) * ue_R
+            elif start < dt * (tick - 1):
+                if end > dt * (tick - 1) and end < tick * dt:
+                    ue_data_frames[ue_id][tick - 1] += (end - (dt * (tick - 1))) * ue_R
+                elif end > tick * dt:
+                    ue_data_frames[ue_id][tick - 1] += ((tick * dt) - (dt * (tick - 1))) * ue_R
+
+    with open("ts_eq24_transmission_ue.txt", "w") as file:
+        for ue in ues:
+            file.write(f"{ue.id}\n")
+            for tick in range(numTicks):
+                file.write(f"{float(tick)} {float(ue_data_frames[int(ue.id)][tick - 1])}\n")
+
+    for ue in ues:
+        for tick in range(1, numTicks + 1):
+            antenna_data_frames[int(ue.assoc_ant)][tick - 1] += ue_data_frames[int(ue.id)][tick - 1]
+
+    with open("ts_eq24_transmission_ant.txt", "w") as file:
+        for antenna in antennas:
+            file.write(f"{antenna.id}\n")
+            for tick in range(numTicks):
+                file.write(f"{float(tick)}: {float(antenna_data_frames[int(antenna.id)][tick - 1])}\n")
+
+    return ue_data_frames, antenna_data_frames
+
+def verify_equipment_validty(data_case,devices,ues,antennas):
+    error_list = set()
+
+    model = data_case["ETUDE_DE_TRANSMISSION"]["PATHLOSS"]["model"]
+    scenario = data_case["ETUDE_DE_TRANSMISSION"]["PATHLOSS"]["scenario"]
+
+    for antenna in antennas:
+        antenna_frequency = devices["ANTENNAS"][antenna.group]["frequency"]
+        antenna_height = devices["ANTENNAS"][antenna.group]["height"]
+        if( model == "okumura"):
+            if not(150 <= antenna_frequency*1000 <= 1500):
+                error_list.add(f"Antenna of group {antenna.group} does not respect okumura frequency condition (150 to 1500 MHz)")
+            if not(30 <= antenna_height <= 300):
+                error_list.add(f"Antenna of group {antenna.group} does not respect okumura height condition (30 to 300 m)")
+        elif ( model == "3gpp"):
+            if( scenario == "RMa"):
+                if not( 10 <= antenna_height <= 150):
+                    error_list.add(f"Antenna of group {antenna.group} does not respect 3gpp-RMa height condition (10 to 150 m)")
+                if not( 0.5 <= antenna_frequency <= 30):
+                    error_list.add(f"Antenna of group {antenna.group} does not respect 3gpp-RMa frequency condition (0.5 to 30 GHz)")
+            if( scenario == "UMa"):
+                if not( 0.5 <= antenna_frequency <= 100):
+                    error_list.add(f"Antenna of group {antenna.group} does not respect 3gpp-UMa frequency condition (0.5 to 100 GHz)")
+            if(scenario == "UMi"):   
+                if not( 0.5 <= antenna_frequency <= 100):
+                    error_list.add(f"Antenna of group {antenna.group} does not respect 3gpp-UMi frequency condition (0.5 to 100 GHz)")
+    for ue in ues:
+        ue_height = devices["UES"][ue.group]["height"]
+        if( model == "okumura"):
+            if not(1 <= ue_height <= 10):
+                error_list.add(f"UE of group {ue.group} does not respect okumura height condition (1 to 10 m)")
+        elif ( model == "3gpp"):
+            if (scenario == "RMa"):
+                if not( 1 <= ue_height <= 10):
+                    error_list.add(f"UE of group {ue.group} does not respect 3gpp-RMa height condition (1 to 10 m)")
+            if (scenario == "UMa"):
+                if not( 1.5 <= ue_height <= 22.5):
+                    error_list.add(f"UE of group {ue.group} does not respect 3gpp-UMa height condition (1.5 to 22.5 m)")
+            if (scenario == "UMi"):
+                if not( 1.5 <= ue_height <= 22.5):
+                    error_list.add(f"UE of group {ue.group} does not respect 3gpp-UMi height condition (1.5 to 22.5 m)")
+    if (len(error_list) > 0) :
+        print("\nList of errors regarding equipment validity depending on model:")
+        for error in error_list:
+            print(error)
+        exit() 
+
+def lab3(data_case,devices):
 
     antenna_names = []
     ue_names = []
@@ -898,6 +782,12 @@ def lab3 (data_case,devices):
 
     return (antennas,ues)
 
+##############################################
+#                    MAIN                    #
+##############################################
+
+
+
 def treat_cli_args(args) :
     if((len(args)) > 1 ):
         print("Insert only one argument")
@@ -909,168 +799,6 @@ def treat_cli_args(args) :
         exit()
     
     return args[0]
-
-def create_text_file(coord_file_name,antennas,ues):
-    with open(coord_file_name,"w") as file:
-        for antenna_index in range(len(antennas)):
-            file.write(f"antenna {antenna_index}\t")
-            file.write(f"{antennas[antenna_index].group}\t")
-            file.write(f"{antennas[antenna_index].coords[0]:.1f}\t")
-            file.write(f"{antennas[antenna_index].coords[1]:.1f}\t\n")
-        for ue_index in range(len(ues)):
-            file.write(f"ue     \t{ue_index}\t")
-            file.write(f"{ues[ue_index].group}\t")
-            file.write(f"{ues[ue_index].coords[0]:.1f}\t")
-            file.write(f"{ues[ue_index].coords[1]:.1f}\t")
-            file.write(f"{ues[ue_index].app}\n")
-
-def ERROR(msg , code = 1):
-    print("\n\n\nERROR\nPROGRAM STOPPED!!!\n")
-    if msg:
-        print(msg)
-    print(f"\n\texit code = {code}\n\n\t\n")
-    sys.exit(code)
-
-def findMinMaxPathloss(plFileName):
-    min_val=math.inf
-    max_val=0
-    with open(plFileName, "r") as f:
-        for line in f:
-            parts = line.strip().split()
-            value = float(parts[2])
-            min_val = min(min_val, value)
-            max_val = max(max_val, value)
-    return (min_val,max_val)
-
-def pathloss_to_cqi(pathloss):
-    
-    (minPl, maxPl) = findMinMaxPathloss("ts_eq24_pl.txt")
-
-    num_bins = 15
-    step = (maxPl - minPl) / num_bins
-
-    if pathloss < minPl:
-        return num_bins
-    if pathloss >= maxPl:
-        return 0
-
-    index = int((pathloss - minPl) / step)
-    return num_bins - index
-
-def generate_expo_inter_arrivals(tfinal, inter_mean_ms):
-    inter_mean_s = inter_mean_ms / 1000.0
-    inter_arrivals = []
-    total_time = 0.0
-
-    while total_time < tfinal:
-        interval = random.expovariate(1.0 / inter_mean_s)
-        total_time += interval
-        if total_time <= tfinal:
-            inter_arrivals.append(interval)
-        else:
-            break
-
-    return inter_arrivals
-
-import random
-
-def generate_uniform_inter_arrivals(tfinal, min_ms, max_ms):
-    min_s = min_ms / 1000.0  # convert to seconds
-    max_s = max_ms / 1000.0
-    inter_arrivals = []
-    total_time = 0.0
-
-    while total_time < tfinal:
-        interval = random.uniform(min_s, max_s)
-        total_time += interval
-        if total_time <= tfinal:
-            inter_arrivals.append(interval)
-        else:
-            break
-
-    return inter_arrivals
-
-def generate_packet_length_and_arrivals(data_case,devices):
-    tfinal = data_case["ETUDE_DE_TRANSMISSION"]["CLOCK"]["tfinal"]
-
-    inter_arrival_mean_app1 = devices["UES"]["UE1-App1"]["inter_mean_ms"]
-    length_mean_app1 = devices["UES"]["UE1-App1"]["base_bits"]
-    bits_var_app1 = devices["UES"]["UE1-App1"]["variability"]
-
-    inter_arrival_min_app2 = devices["UES"]["UE2-App2"]["inter_min_ms"]
-    inter_arrival_max_app2 = devices["UES"]["UE2-App2"]["inter_max_ms"]
-    length_mean_app2 = devices["UES"]["UE2-App2"]["base_bits"]
-    bits_var_app2 = devices["UES"]["UE2-App2"]["variability"]
-
-    inter_arrival_min_app3 = devices["UES"]["UE3-App3"]["inter_min_ms"]
-    inter_arrival_max_app3 = devices["UES"]["UE3-App3"]["inter_max_ms"]
-    length_mean_app3 = devices["UES"]["UE3-App3"]["base_bits"]
-    bits_var_app3 = devices["UES"]["UE3-App3"]["variability"]
-
-    arrival_times_app1 = np.cumsum(generate_expo_inter_arrivals(tfinal, inter_arrival_mean_app1))
-    arrival_times_app2 = np.cumsum(generate_uniform_inter_arrivals(tfinal, inter_arrival_min_app2, inter_arrival_max_app2))
-    arrival_times_app3 = np.cumsum(generate_uniform_inter_arrivals(tfinal, inter_arrival_min_app3, inter_arrival_max_app3))
-    packet_lengths_app1 =  [int(random.uniform(length_mean_app1-bits_var_app1*length_mean_app1, length_mean_app1+bits_var_app1*length_mean_app1)) for _ in range(len(arrival_times_app1))]
-    packet_lengths_app2 = [int(random.uniform(length_mean_app2-bits_var_app2*length_mean_app2, length_mean_app2+bits_var_app2*length_mean_app2)) for _ in range(len(arrival_times_app2))]
-    packet_lengths_app3 = [int(random.uniform(length_mean_app3-bits_var_app3*length_mean_app3, length_mean_app3+bits_var_app3*length_mean_app3)) for _ in range(len(arrival_times_app3))]
-
-    return (arrival_times_app1,arrival_times_app2,arrival_times_app3,packet_lengths_app1,packet_lengths_app2,packet_lengths_app3)
-
-def get_efficiency_from_cqi(cqi):
-
-    """
-    Get spectral efficiency from CQI based on 3GPP TS 38.214 Table 5.2.2.1-2
-    
-    (to be added to the report: this table was chosen over the other tables because it's the 
-    standard table used in 5G NR implementations;
-    It provides a good balance between robustness and throughput;
-    Using a single table will make it easier to compare performance across different applications)
-
-    Args:
-        cqi: Channel Quality Indicator (0-15)
-        
-    Returns:
-        Spectral efficiency
-    """
-    # CQI to efficiency mapping based on Table 5.2.2.1-2
-    efficiency_table = {
-        0: 0.0,    # Out of range - no transmission
-        1: 0.1523, # QPSK, code rate 78/1024
-        2: 0.2344, # QPSK, code rate 120/1024
-        3: 0.3770, # QPSK, code rate 193/1024
-        4: 0.6016, # QPSK, code rate 308/1024
-        5: 0.8770, # QPSK, code rate 449/1024
-        6: 1.1758, # QPSK, code rate 602/1024
-        7: 1.4766, # 16QAM, code rate 378/1024
-        8: 1.9141, # 16QAM, code rate 490/1024
-        9: 2.4063, # 16QAM, code rate 616/1024
-        10: 2.7305, # 64QAM, code rate 466/1024
-        11: 3.3223, # 64QAM, code rate 567/1024
-        12: 3.9023, # 64QAM, code rate 666/1024
-        13: 4.5234, # 64QAM, code rate 772/1024
-        14: 5.1152, # 64QAM, code rate 873/1024
-        15: 5.5547  # 64QAM, code rate 948/1024
-    }
-    
-    # Return the efficiency for the given CQI, or 0.0 if CQI is invalid
-    return efficiency_table.get(cqi, 0.0)
-
-
-def calculate_resource_blocks(bandwidth_mhz, subcarrier_spacing_khz):
-    # Convert to Hz
-    bandwidth_hz = bandwidth_mhz * 1e6
-    subcarrier_spacing_hz = subcarrier_spacing_khz * 1e3
-    
-    # 12 subcarriers per RB
-    rb_bandwidth = 12 * subcarrier_spacing_hz
-    
-    # Account for guard bands (90% usable)
-    usable_bandwidth = bandwidth_hz * 0.9
-    
-    # Calculate number of RBs
-    num_rbs = int(usable_bandwidth / rb_bandwidth)
-    
-    return num_rbs
 
 def main(args):
     random.seed(123)
