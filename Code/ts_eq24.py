@@ -59,7 +59,10 @@ class UE:
         self.assoc_ant_pl = None
         self.cqi = None
         self.eff = None
-        self.packet_generator = None
+        self.nre = None
+        self.ninfo = None
+        self.packets = None
+        self.arrivals = None
 
     def __repr__(self):
         return f"UE(id={self.id}, app={self.app}, coords={self.coords}, ant={self.assoc_ant}, cqi={self.cqi})"
@@ -97,7 +100,6 @@ def generate_uniform_inter_arrivals(tfinal, min_ms, max_ms):
 
 def generate_packet_length_and_arrivals(data_case, devices, ues):
     tfinal = data_case["ETUDE_DE_TRANSMISSION"]["CLOCK"]["tfinal"]
-    traffic_by_ue = {}
 
     for ue in ues:
         if ue.app.lower() == "app1":
@@ -123,18 +125,88 @@ def generate_packet_length_and_arrivals(data_case, devices, ues):
         else:
             raise ValueError(f"Type d'application inconnu: {ue.app}")
 
-        arrival_times = np.cumsum(inter_arrivals)
-        packet_lengths = [
+        ue.arrivals = np.cumsum(inter_arrivals)
+        ue.packets = [
             int(random.uniform(base_bits * (1 - variability),
                                base_bits * (1 + variability)))
-            for _ in range(len(arrival_times))
+            for _ in range(len(ue.arrivals))
         ]
 
-        # Associer le trafic à l'UE
-        traffic_by_ue[ue.id] = list(zip(arrival_times, packet_lengths))
         print(f"\rUE traffic: {ue.id}", end="")
 
-    return traffic_by_ue
+def slot_traffic_creation( data_case, antennas, ues, current_time):
+    NOH = data_case["ETUDE_DE_TRANSMISSION"]["OVERHEAD"]["Bits"] #overhead
+    NRE_PER_RB = 12*14-NOH # Nombre de Resource Elements par RB (1 slot)
+    BITS_PER_RE = 1  # À ajuster selon le modulation/codage réel si nécessaire
+    all_priorities = {"app3": 1, "app2": 2, "app1": 3}  # auto > drone > streaming
+
+    for antenna in antennas:
+        slot_rb_total = antenna.nrb
+        rb_usage = [None] * slot_rb_total  # liste des RBs
+        rb_index = 0
+
+        all_ready_packets = []
+
+        for ue in ues:
+            if ue.assoc_ant == antenna.id:
+                priority = all_priorities.get(ue.app.lower(), 99)
+                while ue.arrivals and current_time >= ue.arrivals[0]:
+                    pkt_size = ue.packets.pop(0)
+                    ue.arrivals.pop(0)
+                    all_ready_packets.append(
+                        (
+                            priority,
+                            ue.app,
+                            ue.eff,
+                            ue,
+                            Packet(
+                                source=ue,
+                                app=ue.app,
+                                packet_id=len(ue.packets),
+                                packet_size=pkt_size,
+                                timeTX=current_time
+                            )
+                        )
+                    )
+
+        # Sort by priority then by arrival time
+        all_ready_packets.sort(key=lambda x: (x[0], x[4].timeTX))
+
+        for _, _, eff, ue, pkt in all_ready_packets:
+            if eff <= 0:
+                continue
+
+            bits_per_rb = eff * NRE_PER_RB * BITS_PER_RE
+            rb_needed = math.ceil(pkt.size / bits_per_rb)
+
+            if rb_index + rb_needed <= slot_rb_total:
+                antenna.packet_queue.append(pkt)
+                for i in range(rb_needed):
+                    rb_usage[rb_index + i] = pkt
+                rb_index += rb_needed
+            else:
+                remaining_rb = slot_rb_total - rb_index
+                if remaining_rb > 0:
+                    fragment_bits = int(remaining_rb * bits_per_rb)
+                    if fragment_bits >= 1:
+                        fragment_pkt = Packet(
+                            source=pkt.source,
+                            app=pkt.app,
+                            packet_id=pkt.id,
+                            packet_size=fragment_bits,
+                            timeTX=current_time
+                        )
+                        antenna.packet_queue.append(fragment_pkt)
+                        for i in range(remaining_rb):
+                            rb_usage[rb_index + i] = fragment_pkt
+
+                        pkt.source.arrivals.insert(0, pkt.timeTX)
+                        pkt.source.packets.insert(0, pkt.size - fragment_bits)
+                        rb_index += remaining_rb
+                else:
+                    pkt.source.arrivals.insert(0, pkt.timeTX)
+                    pkt.source.packets.insert(0, pkt.size)
+                break
 
 
 ##############################################
@@ -844,8 +916,8 @@ def main(args):
         pl = pathlosses[int(ue.id)][int(ue.assoc_ant)]
         ue.cqi = pathloss_to_cqi(pl)
         ue.eff = get_efficiency_from_cqi(ue.cqi)
-        print(f"\rUE efficiency: {ue.id}", end="\n")
-    print("Efficiency calculated")
+        print(f"\rUE efficiency: {ue.id}", end="")
+    print("\n Efficiency calculated")
 
     # RB allocation
     antenna_weights = compute_antenna_load_weights(antennas, ues)
@@ -854,10 +926,27 @@ def main(args):
     total_nrb = get_nrb_from_bw_scs(bw_mhz, scs_khz)  # Assume 100 MHz and 30 kHz SCS
     assign_rb_proportionally(total_nrb, antenna_weights, antennas)
     print("RBs allocated")
-    
+
     # Generation of traffic for UEs
-    traffic_by_ue = generate_packet_length_and_arrivals(data_case, devices, ues)
-    print("UEs traffic generated")
+    generate_packet_length_and_arrivals(data_case, devices, ues)
+    print("\nUEs traffic generated")
+    
+    #simulation time variables 
+    dt = data_case["ETUDE_DE_TRANSMISSION"]["CLOCK"]["dt"]  # Durée d’un tick
+    tstart = data_case["ETUDE_DE_TRANSMISSION"]["CLOCK"]["tstart"]
+    tfinal = data_case["ETUDE_DE_TRANSMISSION"]["CLOCK"]["tfinal"]
+    num_ticks = int((tfinal - tstart) / dt)
+    slot_duration = 1.0 / (2 ** (math.log2(scs_khz / 15))) # en ms
+
+    
+    
+    
+    #Traffic Management
+    current_time = 0
+    for tick in range(num_ticks):
+        current_time = tstart + tick * dt
+        slot_traffic_creation(data_case, antennas, ues, current_time)
+
 
 
 if __name__ == '__main__':

@@ -40,3 +40,5 @@ ETUDE_DE_TRANSMISSION:
    FREQUENCY :
       BW : 20 #Bandwidth in MHz
       SCS : 15 #Subcarrier spacing in KHz
+   OVERHEAD :
+      Bits : 6 # nombre de bits d'overhead
