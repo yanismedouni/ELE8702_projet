@@ -23,7 +23,7 @@ ETUDE_DE_TRANSMISSION:
       UE2-App2 : # Drones devices
          number : 40        
       UE3-App3 : # Auto detect devices
-         number: 1000
+         number: 40 # a changer lors de la remise; done for test purposes
    GEOMETRY:
       Surface:
          rectangle:
@@ -33,8 +33,8 @@ ETUDE_DE_TRANSMISSION:
       read: ts_eq24_visibility.txt
    CLOCK : 
       tstart : 0.0
-      tfinal : 60000.0 #ms 
-      dt : 10.0      #ms 
+      tfinal : 20.0 #ms 
+      dt : 0.1      #ms 
       read : ts_eq24_segments.txt
       #write: time_segments_ts.txt
    FREQUENCY :

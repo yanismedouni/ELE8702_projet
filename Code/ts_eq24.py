@@ -26,7 +26,7 @@ class Antenna:
         self.assoc_ues = []
         self.scenario = None
         self.gen = None
-        self.packet_queue = []
+        self.packet_queues = []
         self.all_packets = []
         self.current_slot = None
         self.packets_this_slot = 0
@@ -61,8 +61,8 @@ class UE:
         self.eff = None
         self.nre = None
         self.ninfo = None
-        self.packets = None
-        self.arrivals = None
+        self.packets = []
+        self.arrivals = []
 
     def __repr__(self):
         return f"UE(id={self.id}, app={self.app}, coords={self.coords}, ant={self.assoc_ant}, cqi={self.cqi})"
@@ -125,7 +125,7 @@ def generate_packet_length_and_arrivals(data_case, devices, ues):
         else:
             raise ValueError(f"Type d'application inconnu: {ue.app}")
 
-        ue.arrivals = np.cumsum(inter_arrivals)
+        ue.arrivals = list(np.cumsum(inter_arrivals))
         ue.packets = [
             int(random.uniform(base_bits * (1 - variability),
                                base_bits * (1 + variability)))
@@ -141,6 +141,7 @@ def slot_traffic_creation( data_case, antennas, ues, current_time):
     all_priorities = {"app3": 1, "app2": 2, "app1": 3}  # auto > drone > streaming
 
     for antenna in antennas:
+        current_packet_queue = []
         slot_rb_total = antenna.nrb
         rb_usage = [None] * slot_rb_total  # liste des RBs
         rb_index = 0
@@ -180,7 +181,7 @@ def slot_traffic_creation( data_case, antennas, ues, current_time):
             rb_needed = math.ceil(pkt.size / bits_per_rb)
 
             if rb_index + rb_needed <= slot_rb_total:
-                antenna.packet_queue.append(pkt)
+                current_packet_queue.append(pkt)
                 for i in range(rb_needed):
                     rb_usage[rb_index + i] = pkt
                 rb_index += rb_needed
@@ -196,7 +197,7 @@ def slot_traffic_creation( data_case, antennas, ues, current_time):
                             packet_size=fragment_bits,
                             timeTX=current_time
                         )
-                        antenna.packet_queue.append(fragment_pkt)
+                        current_packet_queue.append(fragment_pkt)
                         for i in range(remaining_rb):
                             rb_usage[rb_index + i] = fragment_pkt
 
@@ -207,6 +208,8 @@ def slot_traffic_creation( data_case, antennas, ues, current_time):
                     pkt.source.arrivals.insert(0, pkt.timeTX)
                     pkt.source.packets.insert(0, pkt.size)
                 break
+        antenna.packet_queues.append(current_packet_queue)
+        
 
 
 ##############################################
@@ -937,17 +940,22 @@ def main(args):
     tfinal = data_case["ETUDE_DE_TRANSMISSION"]["CLOCK"]["tfinal"]
     num_ticks = int((tfinal - tstart) / dt)
     slot_duration = 1.0 / (2 ** (math.log2(scs_khz / 15))) # en ms
-
     
-    
-    
-    #Traffic Management
+    #Traffic Simulation
     current_time = 0
-    for tick in range(num_ticks):
+    for tick in range(num_ticks+1):
         current_time = tstart + tick * dt
-        slot_traffic_creation(data_case, antennas, ues, current_time)
+        if tick != num_ticks+1:
+            current_time = tstart + tick * dt
+            slot_traffic_creation(data_case, antennas, ues, current_time)
+            print(f"\rsimulation time: {current_time} ms", end="")
+        else:
+            print(f"\rsimulation time: {current_time} ms", end="")
+    print("\nSimulation complete.")
 
-
+    #petit test
+    test_packet = antennas[1].packet_queues[1][1]
+    print (test_packet.size)
 
 if __name__ == '__main__':
     main(sys.argv[1:])
