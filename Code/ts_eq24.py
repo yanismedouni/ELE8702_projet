@@ -26,7 +26,8 @@ class Antenna:
         self.assoc_ues = []
         self.scenario = None
         self.gen = None
-        self.packet_queues = []
+        self.packet_queues_slot = []        
+        self.packet_queues_tick = []
         self.all_packets = []
         self.current_slot = None
         self.packets_this_slot = 0
@@ -134,7 +135,7 @@ def generate_packet_length_and_arrivals(data_case, devices, ues):
 
         print(f"\rUE traffic: {ue.id}", end="")
 
-def slot_traffic_creation( data_case, antennas, ues, current_time):
+def slot_traffic_creation( data_case, antennas, ues, current_time, tick):
     NOH = data_case["ETUDE_DE_TRANSMISSION"]["OVERHEAD"]["Bits"] #overhead
     NRE_PER_RB = 12*14-NOH # Nombre de Resource Elements par RB (1 slot)
     BITS_PER_RE = 1  # À ajuster selon le modulation/codage réel si nécessaire
@@ -208,7 +209,11 @@ def slot_traffic_creation( data_case, antennas, ues, current_time):
                     pkt.source.arrivals.insert(0, pkt.timeTX)
                     pkt.source.packets.insert(0, pkt.size)
                 break
-        antenna.packet_queues.append(current_packet_queue)
+        antenna.packet_queues_slot.append(current_packet_queue)
+        if tick == len(antenna.packet_queues_tick)-1:
+            antenna.packet_queues_tick[-1].extend(current_packet_queue)
+        else:
+            antenna.packet_queues_tick.append(current_packet_queue)
         
 
 
@@ -947,15 +952,17 @@ def main(args):
         current_time = tstart + tick * dt
         if tick != num_ticks+1:
             current_time = tstart + tick * dt
-            slot_traffic_creation(data_case, antennas, ues, current_time)
+            slot_traffic_creation(data_case, antennas, ues, current_time, tick)
             print(f"\rsimulation time: {current_time} ms", end="")
         else:
             print(f"\rsimulation time: {current_time} ms", end="")
     print("\nSimulation complete.")
 
     #petit test
-    test_packet = antennas[1].packet_queues[1][1]
-    print (test_packet.size)
+    for antenna in antennas:
+        for packets_in_tick in antenna.packet_queues_tick:
+            for packet in packets_in_tick:
+                print(packet.size)
 
 if __name__ == '__main__':
     main(sys.argv[1:])
