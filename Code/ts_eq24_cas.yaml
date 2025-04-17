@@ -38,9 +38,5 @@ ETUDE_DE_TRANSMISSION:
       read : ts_eq24_segments.txt
       #write: time_segments_ts.txt
    FREQUENCY :
-      FR1 :
-         BW : 20 #Bandwidth in MHz
-         SCS : 15 #Subcarrier spacing in KHz
-      FR2 :
-         BW : 20 #Bandwidth in MHz
-         SCS : 15 #Subcarrier spacing in KHz
+      BW : 20 #Bandwidth in MHz
+      SCS : 15 #Subcarrier spacing in KHz

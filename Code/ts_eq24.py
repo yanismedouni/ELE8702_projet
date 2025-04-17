@@ -803,12 +803,35 @@ def treat_cli_args(args) :
 def main(args):
     random.seed(123)
 
-    data_case = read_yaml_file(treat_cli_args(args))
-
-    model = data_case["ETUDE_DE_TRANSMISSION"]["PATHLOSS"]["model"]
+    # Load YAML configuration files
+    data_case = read_yaml_file("ts_eq24_case.yaml")
     devices = read_yaml_file("devices_db.yaml")
 
-    [antennas,ues] = lab3(data_case,devices)
+    # Create antenna and UE objects
+    antennas, ues = lab3(data_case, devices)
+
+    # Equipment validation
+    verify_equipment_validty(data_case, devices, ues, antennas)
+
+    # Pathloss computation
+    pathlosses = generate_pathlosses(data_case, ues, antennas)
+
+    # Association and pathloss recording
+    create_assoc_files(data_case, ues, antennas, pathlosses)
+    create_pathloss_file(data_case, ues, antennas, pathlosses)
+
+    # Compute CQI and efficiency for each UE
+    for ue in ues:
+        pl = pathlosses[int(ue.id)][int(ue.assoc_ant)]
+        ue.cqi = pathloss_to_cqi(pl)
+        ue.eff = get_efficiency_from_cqi(ue.cqi)
+
+    # RB allocation
+    antenna_weights = compute_antenna_load_weights(antennas, ues)
+    bw_mhz = data_case["ETUDE_DE_TRANSMISSION"]["FREQUENCY"]["BW"]
+    scs_khz = data_case["ETUDE_DE_TRANSMISSION"]["FREQUENCY"]["SCS"]
+    total_nrb = get_nrb_from_bw_scs(bw_mhz, scs_khz)  # Assume 100 MHz and 30 kHz SCS
+    assign_rb_proportionally(total_nrb, antenna_weights, antennas)
 
     if("write" in data_case["ETUDE_DE_TRANSMISSION"]["COORD_FILES"]):
         create_text_file(data_case["ETUDE_DE_TRANSMISSION"]["COORD_FILES"]["write"], antennas,ues)
