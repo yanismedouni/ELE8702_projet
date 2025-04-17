@@ -65,7 +65,7 @@ class UE:
         return f"UE(id={self.id}, app={self.app}, coords={self.coords}, ant={self.assoc_ant}, cqi={self.cqi})"
 
 ##############################################
-#       PACKET GENERATION UTILITIES         #
+#       TRAFFIC MANAGEMENT FUNCTIONS         #
 ##############################################
 
 def generate_expo_inter_arrivals(tfinal, inter_mean_ms):
@@ -95,32 +95,45 @@ def generate_uniform_inter_arrivals(tfinal, min_ms, max_ms):
             break
     return inter_arrivals
 
-def generate_packet_length_and_arrivals(data_case,devices):
+def generate_packet_length_and_arrivals(data_case, devices, ues):
     tfinal = data_case["ETUDE_DE_TRANSMISSION"]["CLOCK"]["tfinal"]
-    inter_arrival_mean_app1 = devices["UES"]["UE1-App1"]["inter_mean_ms"]
-    length_mean_app1 = devices["UES"]["UE1-App1"]["base_bits"]
-    bits_var_app1 = devices["UES"]["UE1-App1"]["variability"]
+    traffic_by_ue = {}
 
-    inter_arrival_min_app2 = devices["UES"]["UE2-App2"]["inter_min_ms"]
-    inter_arrival_max_app2 = devices["UES"]["UE2-App2"]["inter_max_ms"]
-    length_mean_app2 = devices["UES"]["UE2-App2"]["base_bits"]
-    bits_var_app2 = devices["UES"]["UE2-App2"]["variability"]
+    for ue in ues:
+        if ue.app.lower() == "app1":
+            inter_mean = devices["UES"]["UE1-App1"]["inter_mean_ms"]
+            base_bits = devices["UES"]["UE1-App1"]["base_bits"]
+            variability = devices["UES"]["UE1-App1"]["variability"]
+            inter_arrivals = generate_expo_inter_arrivals(tfinal, inter_mean)
 
-    inter_arrival_min_app3 = devices["UES"]["UE3-App3"]["inter_min_ms"]
-    inter_arrival_max_app3 = devices["UES"]["UE3-App3"]["inter_max_ms"]
-    length_mean_app3 = devices["UES"]["UE3-App3"]["base_bits"]
-    bits_var_app3 = devices["UES"]["UE3-App3"]["variability"]
+        elif ue.app.lower() == "app2":
+            inter_min = devices["UES"]["UE2-App2"]["inter_min_ms"]
+            inter_max = devices["UES"]["UE2-App2"]["inter_max_ms"]
+            base_bits = devices["UES"]["UE2-App2"]["base_bits"]
+            variability = devices["UES"]["UE2-App2"]["variability"]
+            inter_arrivals = generate_uniform_inter_arrivals(tfinal, inter_min, inter_max)
 
-    arrival_times_app1 = np.cumsum(generate_expo_inter_arrivals(tfinal, inter_arrival_mean_app1))
-    arrival_times_app2 = np.cumsum(generate_uniform_inter_arrivals(tfinal, inter_arrival_min_app2, inter_arrival_max_app2))
-    arrival_times_app3 = np.cumsum(generate_uniform_inter_arrivals(tfinal, inter_arrival_min_app3, inter_arrival_max_app3))
+        elif ue.app.lower() == "app3":
+            inter_min = devices["UES"]["UE3-App3"]["inter_min_ms"]
+            inter_max = devices["UES"]["UE3-App3"]["inter_max_ms"]
+            base_bits = devices["UES"]["UE3-App3"]["base_bits"]
+            variability = devices["UES"]["UE3-App3"]["variability"]
+            inter_arrivals = generate_uniform_inter_arrivals(tfinal, inter_min, inter_max)
 
-    packet_lengths_app1 = [int(random.uniform(length_mean_app1-bits_var_app1*length_mean_app1, length_mean_app1+bits_var_app1*length_mean_app1)) for _ in range(len(arrival_times_app1))]
-    packet_lengths_app2 = [int(random.uniform(length_mean_app2-bits_var_app2*length_mean_app2, length_mean_app2+bits_var_app2*length_mean_app2)) for _ in range(len(arrival_times_app2))]
-    packet_lengths_app3 = [int(random.uniform(length_mean_app3-bits_var_app3*length_mean_app3, length_mean_app3+bits_var_app3*length_mean_app3)) for _ in range(len(arrival_times_app3))]
+        else:
+            raise ValueError(f"Type d'application inconnu: {ue.app}")
 
-    return (arrival_times_app1, arrival_times_app2, arrival_times_app3, packet_lengths_app1, packet_lengths_app2, packet_lengths_app3)
+        arrival_times = np.cumsum(inter_arrivals)
+        packet_lengths = [
+            int(random.uniform(base_bits * (1 - variability),
+                               base_bits * (1 + variability)))
+            for _ in range(len(arrival_times))
+        ]
 
+        # Associer le trafic à l'UE
+        traffic_by_ue[ue.id] = list(zip(arrival_times, packet_lengths))
+
+    return traffic_by_ue
 
 
 ##############################################
@@ -833,6 +846,11 @@ def main(args):
     total_nrb = get_nrb_from_bw_scs(bw_mhz, scs_khz)  # Assume 100 MHz and 30 kHz SCS
     assign_rb_proportionally(total_nrb, antenna_weights, antennas)
 
+    # Generation of traffic for UEs
+    traffic_by_ue = generate_packet_length_and_arrivals(data_case, devices, ues)
+
+
+    
     if("write" in data_case["ETUDE_DE_TRANSMISSION"]["COORD_FILES"]):
         create_text_file(data_case["ETUDE_DE_TRANSMISSION"]["COORD_FILES"]["write"], antennas,ues)
     else:
