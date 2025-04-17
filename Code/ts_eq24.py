@@ -132,6 +132,7 @@ def generate_packet_length_and_arrivals(data_case, devices, ues):
 
         # Associer le trafic à l'UE
         traffic_by_ue[ue.id] = list(zip(arrival_times, packet_lengths))
+        print(f"\rUE traffic: {ue.id}", end="")
 
     return traffic_by_ue
 
@@ -377,7 +378,7 @@ def create_pathloss_file(data_case, ues, antennas, pathlosses):
     with open("ts_eq24_pl.txt", "w") as file:
         for ue in ues:
             for antenna in antennas:
-                file.write(f"{ue.id} {antenna.id} {pathlosses[int(ue.id)][int(antenna.id)]} {model} {scenario}\n")
+                file.write(f"{ue.id:<5} {antenna.id:<5} {pathlosses[int(ue.id)][int(antenna.id)]:<20} {model:<8} {scenario}\n")
 
 # Fonction pour créer le fichier d'association d'antennes
 def create_assoc_files(data_case, ues, antennas,pathlosses):
@@ -404,13 +405,12 @@ def create_assoc_files(data_case, ues, antennas,pathlosses):
     # Créer le fichier d'association des antennes
     with open("ts_eq24_assoc_ant.txt", "w") as file:
         for antenna in antennas:
-            assoc_ues_str = " ".join(map(str, antenna.assoc_ues))
-            file.write(f"{antenna.id} {assoc_ues_str}\n")
-
+            assoc_ues_str = " ".join([f"{ue_id:<5}" for ue_id in antenna.assoc_ues])
+            file.write(f"{antenna.id:<3} {assoc_ues_str}\n")
     # Créer le fichier d'association des UEs aux antennes
     with open("ts_eq24_assoc_ue.txt", "w") as file:
         for ue in ues:
-            file.write(f"{ue.id} {ue.assoc_ant}\n")
+            file.write(f"{ue.id:<3} {ue.assoc_ant}\n")
 
 def create_text_file(coord_file_name,antennas,ues):
     with open(coord_file_name,"w") as file:
@@ -782,17 +782,18 @@ def lab3(data_case,devices):
             coord_offset += data_case["ETUDE_DE_TRANSMISSION"]["DEVICES"][antenna_names[antenna_type]]["number"]
 
     coord_offset = 0
+    ueID_offset = 0
     for ue_type in range(len(ue_names)):
         if(ue_names[ue_type] in data_case["ETUDE_DE_TRANSMISSION"]["DEVICES"]):
             for ueId in range(data_case["ETUDE_DE_TRANSMISSION"]["DEVICES"][ue_names[ue_type]]["number"]):
-                ue = UE(ueId,f"app{ue_type+1}")
+                ue = UE(ueId+ueID_offset,f"app{ue_type+1}")
                 ue.height = devices["UES"][ue_names[ue_type]]["height"]
                 ue.group = ue_names[ue_type]
                 ue.coords = ue_coords[ueId+coord_offset]
                 ue.gen =  data_case["ETUDE_DE_TRANSMISSION"]["UE_COORD_GEN"]
                 ues.append(ue)
             coord_offset += data_case["ETUDE_DE_TRANSMISSION"]["DEVICES"][ue_names[ue_type]]["number"]
-
+        ueID_offset = len(ues)    
     return (antennas,ues)
 
 ##############################################
@@ -817,27 +818,34 @@ def main(args):
     random.seed(123)
 
     # Load YAML configuration files
-    data_case = read_yaml_file("ts_eq24_case.yaml")
+    data_case = read_yaml_file("ts_eq24_cas.yaml")
     devices = read_yaml_file("devices_db.yaml")
+    print("Case loaded")
 
     # Create antenna and UE objects
     antennas, ues = lab3(data_case, devices)
+    print("Devices created")
 
     # Equipment validation
     verify_equipment_validty(data_case, devices, ues, antennas)
+    print("Equipment verified")
 
     # Pathloss computation
     pathlosses = generate_pathlosses(data_case, ues, antennas)
+    print("Pathlosses calculated")
 
     # Association and pathloss recording
     create_assoc_files(data_case, ues, antennas, pathlosses)
     create_pathloss_file(data_case, ues, antennas, pathlosses)
+    print("Recordings done")
 
     # Compute CQI and efficiency for each UE
     for ue in ues:
         pl = pathlosses[int(ue.id)][int(ue.assoc_ant)]
         ue.cqi = pathloss_to_cqi(pl)
         ue.eff = get_efficiency_from_cqi(ue.cqi)
+        print(f"\rUE efficiency: {ue.id}", end="\n")
+    print("Efficiency calculated")
 
     # RB allocation
     antenna_weights = compute_antenna_load_weights(antennas, ues)
@@ -845,16 +853,11 @@ def main(args):
     scs_khz = data_case["ETUDE_DE_TRANSMISSION"]["FREQUENCY"]["SCS"]
     total_nrb = get_nrb_from_bw_scs(bw_mhz, scs_khz)  # Assume 100 MHz and 30 kHz SCS
     assign_rb_proportionally(total_nrb, antenna_weights, antennas)
-
+    print("RBs allocated")
+    
     # Generation of traffic for UEs
     traffic_by_ue = generate_packet_length_and_arrivals(data_case, devices, ues)
-
-
-    
-    if("write" in data_case["ETUDE_DE_TRANSMISSION"]["COORD_FILES"]):
-        create_text_file(data_case["ETUDE_DE_TRANSMISSION"]["COORD_FILES"]["write"], antennas,ues)
-    else:
-        (arrival_times_app1,arrival_times_app2,arrival_times_app3,packet_lengths_app1,packet_lengths_app2,packet_lengths_app3) = generate_packet_length_and_arrivals(data_case,devices)
+    print("UEs traffic generated")
 
 
 if __name__ == '__main__':
