@@ -13,3 +13,10 @@ Yanis dimanche 13/04
     - Ménage et structuration du code, avec le lab3 d'Alex et Francis
     - implementation de fonctions : pathloss_to_cqi, get_efficiency_from_cqi (assez sur que c'est bon)
     - les nouvelles fonctions sont rajoutées aprés le commentaire ## NEW PROJECT FUNCTIONS ##
+<<<<<<< HEAD
+=======
+    - Classe Packet ajouté, Classes Antenna et UE modifiées: implémentations de fonctions pour la generation et la reception de packet (pas 100% sur que ca soit bon)
+        - utilisation de simpy : https://simpy.readthedocs.io/en/latest/simpy_intro/basic_concepts.html
+        - pour que ca run taper  pip install simpy
+    - pour le moment aucune idée de qu'est ce qu'il faut faire dans le main
+>>>>>>> 9ef1351bd8dc124cc8f4b725c8fe78c6429d137f

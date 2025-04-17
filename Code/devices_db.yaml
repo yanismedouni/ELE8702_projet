@@ -1,68 +1,98 @@
 ANTENNAS:
   Antenna1:
     type: antenna
-    name: XYZ21
+    name: FR1
     height: 10
-    frequency:  28 #GHz
-    gain:  40
-#
+    frequency: 28 # GHz → FR2
+    gain: 40
+    scs: 120  # kHz
+    bandwidth: 400  # MHz
+
   Antenna2:
     type: antenna
     name: YZX14
     height: 35
-    frequency:  0.9 #GHz
-    gain:  45
-#
+    frequency: 0.9 # GHz → FR1
+    gain: 45
+    scs: 15  # kHz
+    bandwidth: 20  # MHz
+
   Antenna3:
     type: antenna
     name: WWTN4
     height: 10
-    frequency:  28 #GHz
-    gain:  40
-#
+    frequency: 28 # GHz → FR2
+    gain: 40
+    scs: 120  # kHz
+    bandwidth: 400  # MHz
+
   Antenna4:
     type: antenna
     name: XYZ38
     height: 35
-    frequency:  0.9 #GHz
-    gain:  45
+    frequency: 0.9 # GHz → FR1
+    gain: 45
+    scs: 15  # kHz
+    bandwidth: 20  # MHz
 
   Antenna5:
     type: antenna
     name: MYANT
     height: 37
-    frequency:  0.250 #GHz
-    gain:  30 
-        
+    frequency: 2.50 # GHz →  FR1
+    gain: 30
+    scs: 30  # kHz
+    bandwidth: 20  # MHz
+
   Antenna6:
     type: antenna
     name: RWVCX
     height: 20
-    frequency:  1.4 #GHz
-    gain:  30 
-        
+    frequency: 1.4 # GHz → FR1
+    gain: 30
+    scs: 30  # kHz
+    bandwidth: 40  # MHz
+
   Antenna7:
     type: antenna
     name: NICEANT
     height: 30
-    frequency:  3.2 #GHz
-    gain:  35 
+    frequency: 3.2 # GHz → FR1
+    gain: 35
+    scs: 30  # kHz
+    bandwidth: 80  # MHz
+
     
 UES:
   UE1-App1:
     type: ue
     app: Streaming4k
     height: 1.5
-    R: 2000 #kbps
+    #I assume, for now, that the distributions types cant be changeed
+    #inter_distribution: exponential #pour les temps d'arrivée
+    inter_mean_ms: 200          # Temps moyen d'inter-arrivée en millisecondes
+    length_distribution: uniform #pour la longueur des packets
+    base_bits: 400000     # Longueur moyenne du paquet en bits
+    variability: 0.20     # Variabilité de ±20%
 
   UE2-App2:
     type: ue
     app: Drone
     height: 1.5
-    R: 3 #kbps
-    
+    #inter_distribution: uniform #pour les temps d'arrivée
+    inter_min_ms: 30          # Temps min d'inter-arrivée en millisecondes
+    inter_max_ms: 40          # Temps max d'inter-arrivée en millisecondes
+    length_distribution: uniform #pour la longueur des packets
+    base_bits: 100     # Longueur moyenne du paquet en bits
+    variability: 0.05     # Variabilité de ±20%
+
   UE3-App3:
     type: ue
     app: Auto_detect
     height: 1.5
-    R: 0.1 #kbps
+    #inter_distribution: uniform #pour les temps d'arrivée
+    inter_min_ms: 700          # Temps min d'inter-arrivée en millisecondes
+    inter_max_ms: 1300          # Temps max d'inter-arrivée en millisecondes
+    length_distribution: uniform #pour la longueur des packets
+    base_bits: 100     # Longueur moyenne du paquet en bits
+    variability: 0.05     # Variabilité de ±20%

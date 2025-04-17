@@ -5,6 +5,7 @@ import sys
 import math
 import yaml
 import random
+#import simpy
 import os
 import pathloss_3gpp_eq24
 import matplotlib.pyplot as plt
@@ -12,35 +13,245 @@ import numpy as np
 from matplotlib.backends.backend_pdf import PdfPages
 
 class Antenna:
-     
-    def __init__(self, id):
-        self.id = id          #id de l'antenne (int)
-        self.frequency = None # Antenna frequency in GHz
-        self.height = None    # Antenna height
-        self.group = None     # group défini dans la base de données (str)
-        self.coords = None    # tuple contenant les coordonnées (x,y) 
-        self.assoc_ues = []   # liste avec les id des UEs associés à l'antenne
-        self.scenario = None  # pathloss scénario tel que lu du fichier de cas (str)
-        self.gen = None       # type de géneration de coordonnées: 'g', 'a', etc. (str)
-        self.nrb = None       # Nombre de RB associé à l'antenne (int)
+   def __init__(self, id):
+       self.id = id           # id de l'antenne (int)
+       self.frequency = None  # Fréquence de l'antenne en GHz
+       self.height = None     # Hauteur de l'antenne
+       self.group = None      # groupe défini dans la base de données (str)
+       self.coords = None     # tuple contenant les coordonnées (x,y) 
+       self.assoc_ues = []    # liste des ids des UEs associés à l'antenne
+       self.scenario = None   # scénario de pathloss tel que lu du fichier de cas (str)
+       self.gen = None        # type de génération de coordonnées: 'g', 'a', etc. (str)
+       self.packet_queue = [] # tampon pour les paquets en attente de traitement
+       self.all_packets = []  # liste de tous les paquets reçus
+       self.current_slot = None  # Slot courante
+       self.packets_this_slot = 0  # Paquets traités dans le slot courant
+       self.bits_this_slot = 0    # Bits traités dans le slot courant
+       self.scs = None        # Espacement des sous-porteuses (kHz)
+       self.n_rb = None       # Nombre de blocs de ressources
+           self.nrb = None       # Nombre de RB associé à l'antenne (int)
     
-    def __repr__(self):
-        return f"Antenna(id={self.id}, frequency={self.frequency}, height={self.height}, group={self.group}, coords={self.coords}, assoc_ues={self.assoc_ues}, scenario={self.scenario}, gen={self.gen})"
+   def __repr__(self):
+       return f"Antenna(id={self.id}, freq={self.frequency}GHz, RBs={self.n_rb}, UEs={len(self.assoc_ues)})"
+   
+   def calculate_resource_blocks(self):
+    """
+    Détermine le nombre de RB (Ressource Blocks) disponibles en fonction
+    de la largeur de bande du canal et l'espacement entre sous-porteuses.
+    """
+    # Déterminer si nous sommes en FR1 ou FR2
+    is_fr2 = self.frequency > 6  # FR2 est au-dessus de 6 GHz
+    
+    # Largeur de bande par défaut selon la plage de fréquence
+    # Dans un cas réel, cela devrait être lu à partir de la configuration
+    if is_fr2:  # mmWave
+        bandwidth_mhz = 100  # FR2 typiquement utilise 100 MHz
+    else:
+        bandwidth_mhz = 20   # FR1 typiquement utilise 20 MHz
+    
+    # Les valeurs ci-dessous sont extraites directement des normes 3GPP:
+    # - TS 38.101-1 Table 5.3.2-1 pour FR1 (sub-6GHz)
+    # - TS 38.101-2 Table 5.3.2-1 pour FR2 (mmWave)
+    # Ces tableaux définissent le nombre exact de RBs pour chaque 
+    # combinaison de largeur de bande et d'espacement de sous-porteuses.
+    
+    if is_fr2:  # Fréquences mmWave
+        if self.scs == 60:
+            if bandwidth_mhz == 50:
+                self.n_rb = 66
+            elif bandwidth_mhz == 100:
+                self.n_rb = 132
+            elif bandwidth_mhz == 200:
+                self.n_rb = 264
+            else:
+                self.n_rb = 132  # Valeur par défaut
+        elif self.scs == 120:
+            if bandwidth_mhz == 50:
+                self.n_rb = 32
+            elif bandwidth_mhz == 100:
+                self.n_rb = 66
+            elif bandwidth_mhz == 200:
+                self.n_rb = 132
+            else:
+                self.n_rb = 66  # Valeur par défaut
+        else:
+            self.n_rb = 132  # Défaut
+            print(f"Avertissement: SCS {self.scs} non supporté pour FR2, utilisation de 132 RBs")
+    else:  # Fréquences sub-6GHz
+        if self.scs == 15:
+            if bandwidth_mhz == 5:
+                self.n_rb = 25
+            elif bandwidth_mhz == 10:
+                self.n_rb = 52
+            elif bandwidth_mhz == 20:
+                self.n_rb = 106
+            elif bandwidth_mhz == 40:
+                self.n_rb = 216
+            else:
+                self.n_rb = 106  # Défaut pour 20MHz
+        elif self.scs == 30:
+            if bandwidth_mhz == 5:
+                self.n_rb = 11
+            elif bandwidth_mhz == 10:
+                self.n_rb = 24
+            elif bandwidth_mhz == 20:
+                self.n_rb = 51
+            elif bandwidth_mhz == 40:
+                self.n_rb = 106
+            else:
+                self.n_rb = 51  # Défaut pour 20MHz
+        elif self.scs == 60:
+            if bandwidth_mhz == 10:
+                self.n_rb = 11
+            elif bandwidth_mhz == 20:
+                self.n_rb = 24
+            elif bandwidth_mhz == 40:
+                self.n_rb = 51
+            else:
+                self.n_rb = 24  # Défaut pour 20MHz
+        else:
+            self.n_rb = 106  # Défaut
+            print(f"Avertissement: SCS {self.scs} non supporté pour FR1, utilisation de 106 RBs")
+    
+    print(f"Antenne {self.id}: {self.n_rb} blocs de ressources alloués (SCS: {self.scs} kHz, Bande: {bandwidth_mhz} MHz)")
+           
+
+   def receive_packet(self, env, packet):
+       """
+       Traite un paquet entrant
+       
+       Args:
+           env: Environnement SimPy
+           packet: Objet Packet à traiter
+       """
+       # Obtient l'UE qui a envoyé ce paquet
+       ue = packet.source
+       
+       # Calcule les ressources disponibles
+       overhead = 0  # Peut être 0, 6, 12, ou 18 (REs réservés)
+       n_RE = 12 * 14 - overhead  # 12 sous-porteuses × 14 symboles - overhead, eqn 1 de l'énoncé
+       n_RB = self.n_rb  # Nombre de blocs de ressources
+       
+       # Calcule le nombre maximum de bits d'information pouvant être transmis
+       if ue.eff is None:
+           # Défaut à une faible efficacité si non définie
+           ue.eff = 0.1523  # Équivalent à CQI 1
+           print(f"Avertissement: UE {ue.id} n'a pas d'efficacité définie, utilisation de la valeur par défaut")
+       
+       n_info = n_RB * n_RE * ue.eff  #eqn 2 de l'énoncé
+       
+       # Obtient le temps et le slot courants
+       active_time = env.now
+       dt = 1  # Durée d'un slot
+       active_slot = int(active_time / dt)
+       
+       # Si nous avons changé de slot, traite les paquets en file d'attente
+       if active_slot != self.current_slot:
+           self.current_slot = active_slot
+           bits_to_move = 0
+           pacs_to_move = 0
+           
+           # Calcule combien de paquets nous pouvons traiter dans ce slot
+           for pac in self.packet_queue:
+               if (pac.size + bits_to_move) <= n_info:
+                   bits_to_move += pac.size
+                   pacs_to_move += 1
+               else:
+                   break
+           
+           self.packets_this_slot = pacs_to_move
+           self.bits_this_slot = bits_to_move
+           
+           # Traite les paquets qui rentrent dans ce slot
+           if pacs_to_move > 0:
+               for pac in self.packet_queue[:pacs_to_move]:
+                   pac.timeRX = active_slot * dt
+                   self.all_packets.append(pac)
+               
+               # Retire les paquets traités de la file d'attente
+               self.packet_queue = self.packet_queue[pacs_to_move:]
+       
+       # Traite le paquet courant
+       if (self.bits_this_slot + packet.size) < n_info:
+           # S'il rentre dans le slot courant, traite immédiatement
+           self.bits_this_slot += packet.size
+           self.packets_this_slot += 1
+           packet.timeRX = env.now
+           self.all_packets.append(packet)
+       else:
+           # Sinon, le met en file d'attente pour plus tard
+           self.packet_queue.append(packet)
+
+
+class Packet:
+   def __init__(self, source, app, packet_id, packet_size, timeTX):
+       self.id = packet_id
+       self.size = packet_size
+       self.timeTX = timeTX  # Temps d'envoi du paquet
+       self.timeRX = None    # Temps de réception du paquet
+       self.app = app
+       self.source = source
 
 class UE:
-
-    def __init__(self, id, app_name):
-        self.id= id           # id de l'UE (int)
-        self.height = None    # UE height
-        self.group = None     # group défini dans la base de données (str)
-        self.coords=None      # tuple contenant les coordonnées (x,y) 
-        self.app=app_name     # nom de l'application qui tourne dans le UE (str)
-        self.assoc_ant=None   # id de l'antenne associée à l'UE (int)
-        self.los = True       # LoS ou non (bool)
-        self.gen = None       # type de géneration de coordonnées: 'g', 'a', etc. (str)
-    
-    def __repr__(self):
-        return f"Ue(id={self.id}, height={self.height}, group={self.group}, coords={self.coords}, assoc_antenna={self.assoc_ant}, scenario={self.assoc_ant},los={self.los}, gen={self.gen})"
+   def __init__(self, id, app_name):
+       self.id = id           # id de l'UE (int)
+       self.height = None     # Hauteur de l'UE
+       self.group = None      # groupe défini dans la base de données (str)
+       self.coords = None     # tuple contenant les coordonnées (x,y) 
+       self.app = app_name    # nom de l'application exécutée sur l'UE (str)
+       self.assoc_ant = None  # id de l'antenne associée à l'UE (int)
+       self.los = True        # LoS ou non (bool)
+       self.gen = None        # type de génération de coordonnées: 'g', 'a', etc. (str)
+       self.packets = []      # liste des paquets générés par cet UE
+       self.assoc_ant_pl = None  # Pathloss vers l'antenne associée
+       self.cqi = None        # Indicateur de Qualité du Canal
+       self.eff = None        # Efficacité spectrale
+       self.packet_generator = None  # Processus SimPy pour la génération de paquets
+   
+   def __repr__(self):
+       return f"UE(id={self.id}, app={self.app}, coords={self.coords}, ant={self.assoc_ant}, cqi={self.cqi})"
+   
+   def generate_packet(self, env, antennas):
+       """
+       Processus SimPy qui génère des paquets selon les caractéristiques de l'application
+       
+       Args:
+           env: Environnement SimPy
+           antennas: Liste de toutes les antennes dans la simulation
+       """
+       while True:
+           packet_id = len(self.packets)  # Génère un ID de paquet unique
+           
+           if self.app == "Streaming4k":
+               # Distribution exponentielle avec moyenne de 200ms
+               yield env.timeout(random.expovariate(1.0 / (200e-3)))
+               # Taille du paquet: 400 000 bits ±20%
+               packet_size = int(random.uniform(0.8 * 400000, 1.2 * 400000))
+               
+           elif self.app == "Drone":
+               # Distribution uniforme entre 30-40ms
+               yield env.timeout(random.uniform(30e-3, 40e-3))
+               # Taille du paquet: 100 bits ±5%
+               packet_size = int(random.uniform(0.95 * 100, 1.05 * 100))
+               
+           elif self.app == "Auto_detect":
+               # Distribution uniforme entre 700-1300ms
+               yield env.timeout(random.uniform(700e-3, 1300e-3))
+               # Taille du paquet: 100 bits ±5%
+               packet_size = int(random.uniform(0.95 * 100, 1.05 * 100))
+               
+           else:
+               raise ValueError(f"Type d'application inconnu: {self.app}")
+           
+           # Crée le paquet et l'ajoute à la liste des paquets de l'UE
+           packet = Packet(self, self.app, packet_id, packet_size, env.now)
+           self.packets.append(packet)
+           
+           # Envoie le paquet à l'antenne associée
+           if self.assoc_ant is not None and 0 <= self.assoc_ant < len(antennas):
+               antennas[self.assoc_ant].receive_packet(env, packet)
+           else:
+               print(f"Avertissement: UE {self.id} a une antenne associée invalide {self.assoc_ant}")
 
 
 def fill_up_the_lattice(N, lh, lv, nh, nv):
@@ -394,6 +605,7 @@ def generate_packets_streaming(tstart, tfinal, n_packets=1000):
     return np.array(arrivals), sizes
 
     
+    #Do not use this function because R has been removed
 def generate_ue_transmission(data_case,devices,ues,antennas):
     tstart = data_case["ETUDE_DE_TRANSMISSION"]["CLOCK"]["tstart"]
     tfinal = data_case["ETUDE_DE_TRANSMISSION"]["CLOCK"]["tfinal"]
@@ -719,43 +931,93 @@ def ERROR(msg , code = 1):
     print(f"\n\texit code = {code}\n\n\t\n")
     sys.exit(code)
 
-## NEW PROJECT FUNCTIONS ##
+def findMinMaxPathloss(plFileName):
+    min_val=math.inf
+    max_val=0
+    with open(plFileName, "r") as f:
+        for line in f:
+            parts = line.strip().split()
+            value = float(parts[2])
+            min_val = min(min_val, value)
+            max_val = max(max_val, value)
+    return (min_val,max_val)
 
-def pathloss_to_cqi(pathloss, frequency_range):
-    """
-    Map pathloss to CQI with proper handling of edge cases
+def pathloss_to_cqi(pathloss):
     
-    Args:
-        pathloss: Path loss value in dB
-        frequency_range: 'FR1' or 'FR2'
-        
-    Returns:
-        CQI value (0-15)
-    """
-    # Handle infinite pathloss
-    if math.isinf(pathloss) or pathloss > 200:
-        return 0  # Out of range - no transmission
-        
-    # Handle zero or very low pathloss
-    if pathloss <= 0 or pathloss < 30:
-        return 15  # Best quality
-    
-    # Define thresholds based on frequency range
-    if frequency_range == 'FR1':
-        # Thresholds, not sure which values to change exactly
-        thresholds = [75, 80, 85, 90, 95, 100, 105, 110, 115, 120, 125, 130, 135, 140, 145]
-    else:  # FR2
-        # mmWave has worse penetration, so lower thresholds
-        thresholds = [65, 70, 75, 80, 85, 90, 95, 100, 105, 110, 115, 120, 125, 130, 135]
-    
-    # Map pathloss to CQI
-    for i, threshold in enumerate(thresholds):
-        if pathloss < threshold:
-            return 15 - i
-    
-    return 0  # Default to no transmission if above all thresholds
+    (minPl, maxPl) = findMinMaxPathloss("ts_eq24_pl.txt")
+
+    num_bins = 15
+    step = (maxPl - minPl) / num_bins
+
+    if pathloss < minPl:
+        return num_bins
+    if pathloss >= maxPl:
+        return 0
+
+    index = int((pathloss - minPl) / step)
+    return num_bins - index
+
+def generate_expo_inter_arrivals(tfinal, inter_mean_ms):
+    inter_mean_s = inter_mean_ms / 1000.0
+    inter_arrivals = []
+    total_time = 0.0
+
+    while total_time < tfinal:
+        interval = random.expovariate(1.0 / inter_mean_s)
+        total_time += interval
+        if total_time <= tfinal:
+            inter_arrivals.append(interval)
+        else:
+            break
+
+    return inter_arrivals
+
+import random
+
+def generate_uniform_inter_arrivals(tfinal, min_ms, max_ms):
+    min_s = min_ms / 1000.0  # convert to seconds
+    max_s = max_ms / 1000.0
+    inter_arrivals = []
+    total_time = 0.0
+
+    while total_time < tfinal:
+        interval = random.uniform(min_s, max_s)
+        total_time += interval
+        if total_time <= tfinal:
+            inter_arrivals.append(interval)
+        else:
+            break
+
+    return inter_arrivals
+
+def generate_packet_length_and_arrivals(data_case,devices):
+    tfinal = data_case["ETUDE_DE_TRANSMISSION"]["CLOCK"]["tfinal"]
+
+    inter_arrival_mean_app1 = devices["UES"]["UE1-App1"]["inter_mean_ms"]
+    length_mean_app1 = devices["UES"]["UE1-App1"]["base_bits"]
+    bits_var_app1 = devices["UES"]["UE1-App1"]["variability"]
+
+    inter_arrival_min_app2 = devices["UES"]["UE2-App2"]["inter_min_ms"]
+    inter_arrival_max_app2 = devices["UES"]["UE2-App2"]["inter_max_ms"]
+    length_mean_app2 = devices["UES"]["UE2-App2"]["base_bits"]
+    bits_var_app2 = devices["UES"]["UE2-App2"]["variability"]
+
+    inter_arrival_min_app3 = devices["UES"]["UE3-App3"]["inter_min_ms"]
+    inter_arrival_max_app3 = devices["UES"]["UE3-App3"]["inter_max_ms"]
+    length_mean_app3 = devices["UES"]["UE3-App3"]["base_bits"]
+    bits_var_app3 = devices["UES"]["UE3-App3"]["variability"]
+
+    arrival_times_app1 = np.cumsum(generate_expo_inter_arrivals(tfinal, inter_arrival_mean_app1))
+    arrival_times_app2 = np.cumsum(generate_uniform_inter_arrivals(tfinal, inter_arrival_min_app2, inter_arrival_max_app2))
+    arrival_times_app3 = np.cumsum(generate_uniform_inter_arrivals(tfinal, inter_arrival_min_app3, inter_arrival_max_app3))
+    packet_lengths_app1 =  [int(random.uniform(length_mean_app1-bits_var_app1*length_mean_app1, length_mean_app1+bits_var_app1*length_mean_app1)) for _ in range(len(arrival_times_app1))]
+    packet_lengths_app2 = [int(random.uniform(length_mean_app2-bits_var_app2*length_mean_app2, length_mean_app2+bits_var_app2*length_mean_app2)) for _ in range(len(arrival_times_app2))]
+    packet_lengths_app3 = [int(random.uniform(length_mean_app3-bits_var_app3*length_mean_app3, length_mean_app3+bits_var_app3*length_mean_app3)) for _ in range(len(arrival_times_app3))]
+
+    return (arrival_times_app1,arrival_times_app2,arrival_times_app3,packet_lengths_app1,packet_lengths_app2,packet_lengths_app3)
 
 def get_efficiency_from_cqi(cqi):
+
     """
     Get spectral efficiency from CQI based on 3GPP TS 38.214 Table 5.2.2.1-2
     
@@ -793,35 +1055,38 @@ def get_efficiency_from_cqi(cqi):
     # Return the efficiency for the given CQI, or 0.0 if CQI is invalid
     return efficiency_table.get(cqi, 0.0)
 
-def main(args):
 
+def calculate_resource_blocks(bandwidth_mhz, subcarrier_spacing_khz):
+    # Convert to Hz
+    bandwidth_hz = bandwidth_mhz * 1e6
+    subcarrier_spacing_hz = subcarrier_spacing_khz * 1e3
+    
+    # 12 subcarriers per RB
+    rb_bandwidth = 12 * subcarrier_spacing_hz
+    
+    # Account for guard bands (90% usable)
+    usable_bandwidth = bandwidth_hz * 0.9
+    
+    # Calculate number of RBs
+    num_rbs = int(usable_bandwidth / rb_bandwidth)
+    
+    return num_rbs
+
+def main(args):
     random.seed(123)
+
     data_case = read_yaml_file(treat_cli_args(args))
+
     model = data_case["ETUDE_DE_TRANSMISSION"]["PATHLOSS"]["model"]
     devices = read_yaml_file("devices_db.yaml")
-    
+
     [antennas,ues] = lab3(data_case,devices)
 
     if("write" in data_case["ETUDE_DE_TRANSMISSION"]["COORD_FILES"]):
         create_text_file(data_case["ETUDE_DE_TRANSMISSION"]["COORD_FILES"]["write"], antennas,ues)
     else:
-        if(model == "okumura" or model == "3gpp"):
-            (antennas,ues) = read_coord_file(data_case,devices)
-            verify_equipment_validty(data_case,devices,ues,antennas)
-            pathlosses = generate_pathlosses(data_case,ues,antennas)
-            create_pathloss_file(data_case,ues,antennas,pathlosses)
-            create_assoc_files(data_case,ues,antennas,pathlosses)
+        (arrival_times_app1,arrival_times_app2,arrival_times_app3,packet_lengths_app1,packet_lengths_app2,packet_lengths_app3) = generate_packet_length_and_arrivals(data_case,devices)
 
-            (ue_data_frames,antenna_data_frames) = generate_ue_transmission(data_case,devices,ues,antennas)
-
-            tstart = data_case["ETUDE_DE_TRANSMISSION"]["CLOCK"]["tstart"]
-            tfinal = data_case["ETUDE_DE_TRANSMISSION"]["CLOCK"]["tfinal"]
-            dt = data_case["ETUDE_DE_TRANSMISSION"]["CLOCK"]["dt"]
-            
-            plot_transmissions(ue_data_frames, antenna_data_frames, tstart, tfinal , dt, ues, antennas)
-        else:
-            msg = f"Model name {model} is not available (only \"okumura\" and \"3gpp\" supported)"
-            ERROR(msg, 1)
 
 if __name__ == '__main__':
     main(sys.argv[1:])
