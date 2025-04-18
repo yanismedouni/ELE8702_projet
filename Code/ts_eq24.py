@@ -217,16 +217,6 @@ def slot_traffic_creation( data_case, antennas, ues, current_time, tick):
         else:
             antenna.packet_queues_tick.append(current_slot_packets) 
 
-    total_bytes = sum(pkt.size for pkt in current_slot_packets)
-
-    antenna_transmissions = {
-        "tick": tick,
-        "antenna_id": antenna.id,
-        "packet_count": len(current_slot_packets),
-        "total_bytes": total_bytes,
-    }
-    return antenna_transmissions
-
 def plot_transmission_summary(packet_counts_per_tick):
     ticks = set()
     packet_counts = defaultdict(int)
