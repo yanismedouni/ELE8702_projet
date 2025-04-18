@@ -355,13 +355,14 @@ def assign_rb_proportionally(total_nrb, antenna_weights, antennas):
 
 def findMinMaxPathloss(plFileName):
     min_val = math.inf
-    max_val = 0
+    max_val = -math.inf
     with open(plFileName, "r") as f:
         for line in f:
             parts = line.strip().split()
             value = float(parts[2])
-            min_val = min(min_val, value)
-            max_val = max(max_val, value)
+            if(value != math.inf and value != 0): 
+                min_val = min(min_val, value)
+                max_val = max(max_val, value)
     return (min_val, max_val)
 
 def pathloss_to_cqi(pathloss, minPl, maxPl):
@@ -1042,7 +1043,51 @@ def main(args):
         
     print("\nSimulation complete.")
 
-    print(antennas[0].packet_queues_tick)
+    from collections import defaultdict
+
+    # Dictionary to store stats per tick
+    tick_stats = defaultdict(lambda: {"packet_count": 0, "total_bits": 0})
+
+    for antenna in antennas:
+        for tick, packets in enumerate(antenna.packet_queues_tick):
+            tick_stats[tick]["packet_count"] += len(packets)
+            tick_stats[tick]["total_bits"] += sum(pkt.size for pkt in packets)
+
+    ticks = sorted(tick_stats.keys())
+    packet_counts = [tick_stats[tick]["packet_count"] for tick in ticks]
+
+    plt.figure(figsize=(10, 5))
+    plt.bar(ticks, packet_counts, color='skyblue', edgecolor='black')
+    plt.xlabel("Tick")
+    plt.ylabel("Number of Packets Transmitted")
+    plt.title("Packet Transmission per Tick")
+    plt.grid(True, axis='y', linestyle='--', alpha=0.7)
+    plt.tight_layout()
+    plt.show()
+
+    ticks = sorted(tick_stats.keys())
+    bit_counts = [tick_stats[tick]["total_bits"] for tick in ticks]
+
+    plt.figure(figsize=(10, 5))
+    plt.bar(ticks, bit_counts, color='salmon', edgecolor='black')
+    plt.xlabel("Tick")
+    plt.ylabel("Total Bits Transmitted")
+    plt.title("Total Bits Transmitted per Tick")
+    plt.grid(True, axis='y', linestyle='--', alpha=0.7)
+    plt.tight_layout()
+    plt.show()
+
+
+    
+    #plt.hist(total_packets_per_tick, bins=tfinal/dt, range=(90, 180), edgecolor='black')
+    #plt.xlabel('Value')
+    #plt.ylabel('Frequency')
+    #plt.title('Histogram (X-axis from 90 to 180)')
+    #plt.xlim(90, 180)  # Force x-axis to stay within 90–180
+    #plt.grid(True)
+    #plt.tight_layout()
+    #plt.show()
+
     # #petit test
     # for antenna in antennas:
     #     for packets_in_tick in antenna.packet_queues_tick:
