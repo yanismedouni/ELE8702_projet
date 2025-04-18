@@ -144,7 +144,7 @@ def slot_traffic_creation( data_case, antennas, ues, current_time, tick):
     all_priorities = {"app3": 1, "app2": 2, "app1": 3}  # auto > drone > streaming
 
     for antenna in antennas:
-        current_packet_queue = []
+        current_slot_packets = []
         slot_rb_total = antenna.nrb
         rb_usage = [None] * slot_rb_total  # liste des RBs
         rb_index = 0
@@ -184,7 +184,7 @@ def slot_traffic_creation( data_case, antennas, ues, current_time, tick):
             rb_needed = math.ceil(pkt.size / bits_per_rb)
 
             if rb_index + rb_needed <= slot_rb_total:
-                current_packet_queue.append(pkt)
+                current_slot_packets.append(pkt)
                 for i in range(rb_needed):
                     rb_usage[rb_index + i] = pkt
                 rb_index += rb_needed
@@ -200,7 +200,7 @@ def slot_traffic_creation( data_case, antennas, ues, current_time, tick):
                             packet_size=fragment_bits,
                             timeTX=current_time
                         )
-                        current_packet_queue.append(fragment_pkt)
+                        current_slot_packets.append(fragment_pkt)
                         for i in range(remaining_rb):
                             rb_usage[rb_index + i] = fragment_pkt
 
@@ -211,18 +211,18 @@ def slot_traffic_creation( data_case, antennas, ues, current_time, tick):
                     pkt.source.arrivals.insert(0, pkt.timeTX)
                     pkt.source.packets.insert(0, pkt.size)
                 break
-        antenna.packet_queues_slot.append(current_packet_queue)
+        antenna.packet_queues_slot.append(current_slot_packets)
         if tick == len(antenna.packet_queues_tick)-1:
-            antenna.packet_queues_tick[-1].extend(current_packet_queue)
+            antenna.packet_queues_tick[-1].extend(current_slot_packets)
         else:
-            antenna.packet_queues_tick.append(current_packet_queue) 
+            antenna.packet_queues_tick.append(current_slot_packets) 
 
-    total_bytes = sum(pkt.size for pkt in current_packet_queue)
+    total_bytes = sum(pkt.size for pkt in current_slot_packets)
 
     antenna_transmissions = {
         "tick": tick,
         "antenna_id": antenna.id,
-        "packet_count": len(current_packet_queue),
+        "packet_count": len(current_slot_packets),
         "total_bytes": total_bytes,
     }
     return antenna_transmissions
@@ -960,7 +960,18 @@ def main(args):
     # Load YAML configuration files
     data_case = read_yaml_file("ts_eq24_cas.yaml")
     devices = read_yaml_file("devices_db.yaml")
-    print("Case loaded")
+    print("Case loaded")    
+
+    #simulation time variables
+    bw_mhz = data_case["ETUDE_DE_TRANSMISSION"]["FREQUENCY"]["BW"]
+    scs_khz = data_case["ETUDE_DE_TRANSMISSION"]["FREQUENCY"]["SCS"] 
+    dt = data_case["ETUDE_DE_TRANSMISSION"]["CLOCK"]["dt"]  # Durée d’un tick
+    tstart = data_case["ETUDE_DE_TRANSMISSION"]["CLOCK"]["tstart"]
+    tfinal = data_case["ETUDE_DE_TRANSMISSION"]["CLOCK"]["tfinal"]
+    num_ticks = int((tfinal - tstart) / dt)
+    slot_duration = 1.0 / (2 ** (math.log2(scs_khz / 15))) # en ms
+    if slot_duration > dt or dt % slot_duration:
+        ERROR("Il faut choisir un dt qui est a la fois plus grand et un multiple de la durée d'une slot")
 
     if("write" in data_case["ETUDE_DE_TRANSMISSION"]["COORD_FILES"]):
         # Create antenna and UE objects
@@ -975,60 +986,55 @@ def main(args):
         verify_equipment_validty(data_case, devices, ues, antennas)
         print("Equipment verified")
 
-        # Pathloss computation
-        pathlosses = generate_pathlosses(data_case, ues, antennas)
-        print("Pathlosses calculated")
+    # Pathloss computation
+    pathlosses = generate_pathlosses(data_case, ues, antennas)
+    print("Pathlosses calculated")
 
-        # Association and pathloss recording
-        create_assoc_files(data_case, ues, antennas, pathlosses)
-        create_pathloss_file(data_case, ues, antennas, pathlosses)
-        print("Recordings done")
+    # Association and pathloss recording
+    create_assoc_files(data_case, ues, antennas, pathlosses)
+    create_pathloss_file(data_case, ues, antennas, pathlosses)
+    print("Recordings done")
 
-        # Compute CQI and efficiency for each UE
-        for ue in ues:
-            pl = pathlosses[int(ue.id)][int(ue.assoc_ant)]
-            ue.cqi = pathloss_to_cqi(pl)
-            ue.eff = get_efficiency_from_cqi(ue.cqi)
-            print(f"\rUE efficiency: {ue.id}", end="")
-        print("\n Efficiency calculated")
+    # Compute CQI and efficiency for each UE
+    for ue in ues:
+        pl = pathlosses[int(ue.id)][int(ue.assoc_ant)]
+        ue.cqi = pathloss_to_cqi(pl)
+        ue.eff = get_efficiency_from_cqi(ue.cqi)
+        print(f"\rUE efficiency: {ue.id}", end="")
+    print("\n Efficiency calculated")
 
-        # RB allocation
-        antenna_weights = compute_antenna_load_weights(antennas, ues)
-        bw_mhz = data_case["ETUDE_DE_TRANSMISSION"]["FREQUENCY"]["BW"]
-        scs_khz = data_case["ETUDE_DE_TRANSMISSION"]["FREQUENCY"]["SCS"]
-        total_nrb = get_nrb_from_bw_scs(bw_mhz, scs_khz)  # Assume 100 MHz and 30 kHz SCS
-        assign_rb_proportionally(total_nrb, antenna_weights, antennas)
-        print("RBs allocated")
+    # RB allocation
+    antenna_weights = compute_antenna_load_weights(antennas, ues)
+    total_nrb = get_nrb_from_bw_scs(bw_mhz, scs_khz)  # Assume 100 MHz and 30 kHz SCS
+    assign_rb_proportionally(total_nrb, antenna_weights, antennas)
+    print("RBs allocated")
 
-        # Generation of traffic for UEs
-        generate_packet_length_and_arrivals(data_case, devices, ues)
-        print("\nUEs traffic generated")
-    
-        #simulation time variables 
-        dt = data_case["ETUDE_DE_TRANSMISSION"]["CLOCK"]["dt"]  # Durée d’un tick
-        tstart = data_case["ETUDE_DE_TRANSMISSION"]["CLOCK"]["tstart"]
-        tfinal = data_case["ETUDE_DE_TRANSMISSION"]["CLOCK"]["tfinal"]
-        num_ticks = int((tfinal - tstart) / dt)
-        slot_duration = 1.0 / (2 ** (math.log2(scs_khz / 15))) # en ms
-    
-        packet_counts_per_tick = []
-        #Traffic Simulation
-        current_time = 0
-        for tick in range(num_ticks+1):
-            current_time = tstart + tick * dt
-            antenna_transmission = slot_traffic_creation(data_case, antennas, ues, current_time, tick)
-            packet_counts_per_tick.append(antenna_transmission)
+    # Generation of traffic for UEs
+    generate_packet_length_and_arrivals(data_case, devices, ues)
+    print("\nUEs traffic generated")
+
+    #Traffic Simulation
+    current_time = 0
+    slot_count = 0
+    for tick in range(num_ticks+1):
+        tick_start = tstart + tick * dt
+        tick_end = tick_start + dt
+        if tick != num_ticks+1:
+            while current_time < tick_end:
+                slot_traffic_creation(data_case, antennas, ues, current_time, tick)
+                current_time += slot_duration  # assumed to be in ms
+                slot_count += 1
             print(f"\rsimulation time: {current_time} ms", end="")
         else:
             print(f"\rsimulation time: {current_time} ms", end="")
-        print("\nSimulation complete.")
+        
+    print("\nSimulation complete.")
 
-        plot_transmission_summary(packet_counts_per_tick)
-        #petit test
-        #for antenna in antennas:
-        #    for packets_in_tick in antenna.packet_queues_tick:
-        #        for packet in packets_in_tick:
-        #            print(packet.size)
+    # #petit test
+    # for antenna in antennas:
+    #     for packets_in_tick in antenna.packet_queues_tick:
+    #         for packet in packets_in_tick:
+    #             print(packet.size)    
 
 if __name__ == '__main__':
     main(sys.argv[1:])
