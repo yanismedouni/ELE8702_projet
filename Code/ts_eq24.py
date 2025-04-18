@@ -361,8 +361,7 @@ def findMinMaxPathloss(plFileName):
             max_val = max(max_val, value)
     return (min_val, max_val)
 
-def pathloss_to_cqi(pathloss):
-    (minPl, maxPl) = findMinMaxPathloss("ts_eq24_pl.txt")
+def pathloss_to_cqi(pathloss, minPl, maxPl):
     num_bins = 15
     step = (maxPl - minPl) / num_bins
     if pathloss < minPl:
@@ -997,6 +996,7 @@ def main(args):
 
     # Pathloss computation
     pathlosses = generate_pathlosses(data_case, ues, antennas)
+    (minPl, maxPl) = findMinMaxPathloss("ts_eq24_pl.txt")
     print("Pathlosses calculated")
 
     # Association and pathloss recording
@@ -1007,7 +1007,7 @@ def main(args):
     # Compute CQI and efficiency for each UE
     for ue in ues:
         pl = pathlosses[int(ue.id)][int(ue.assoc_ant)]
-        ue.cqi = pathloss_to_cqi(pl)
+        ue.cqi = pathloss_to_cqi(pl, minPl, maxPl)
         ue.eff = get_efficiency_from_cqi(ue.cqi)
         print(f"\rUE efficiency: {ue.id}", end="")
     print("\n Efficiency calculated")
