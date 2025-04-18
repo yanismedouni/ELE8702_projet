@@ -13,8 +13,8 @@ ETUDE_DE_TRANSMISSION:
    ANT_COORD_GEN : g
    UE_COORD_GEN: a
    COORD_FILES:  # Used when coordinates are read from a file 
-      read: ts_eq24_coords.txt
-      #write: ts_eq24_coords.txt
+      #read: ts_eq24_coords.txt
+      write: ts_eq24_coords.txt
    DEVICES:
       Antenna1 : # not sure how many and what kind of antennas to choose
          number : 40
@@ -23,7 +23,7 @@ ETUDE_DE_TRANSMISSION:
       UE2-App2 : # Drones devices
          number : 40        
       UE3-App3 : # Auto detect devices
-         number: 40 # a changer lors de la remise; done for test purposes
+         number: 1000 # a changer lors de la remise; done for test purposes
    GEOMETRY:
       Surface:
          rectangle:
@@ -33,7 +33,7 @@ ETUDE_DE_TRANSMISSION:
       read: ts_eq24_visibility.txt
    CLOCK : 
       tstart : 0.0
-      tfinal : 100 #ms 
+      tfinal : 2000 #ms 
       dt : 1      #ms 
       read : ts_eq24_segments.txt
       #write: time_segments_ts.txt
