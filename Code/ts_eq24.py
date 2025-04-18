@@ -888,6 +888,42 @@ def treat_cli_args(args) :
     
     return args[0]
 
+def plottingFunction(antennas):
+    from collections import defaultdict
+
+    # Dictionary to store stats per tick
+    tick_stats = defaultdict(lambda: {"packet_count": 0, "total_bits": 0})
+
+    for antenna in antennas:
+        for tick, packets in enumerate(antenna.packet_queues_tick):
+            tick_stats[tick]["packet_count"] += len(packets)
+            tick_stats[tick]["total_bits"] += sum(pkt.size for pkt in packets)
+
+    ticks = sorted(tick_stats.keys())
+    packet_counts = [tick_stats[tick]["packet_count"] for tick in ticks]
+
+    plt.figure(figsize=(10, 5))
+    plt.bar(ticks, packet_counts, color='skyblue', edgecolor='black')
+    plt.xlabel("Tick")
+    plt.ylabel("Number of Packets Transmitted")
+    plt.title("Packet Transmission per Tick")
+    plt.grid(True, axis='y', linestyle='--', alpha=0.7)
+    plt.tight_layout()
+    plt.show()
+
+    ticks = sorted(tick_stats.keys())
+    bit_counts = [tick_stats[tick]["total_bits"] for tick in ticks]
+
+    plt.figure(figsize=(10, 5))
+    plt.bar(ticks, bit_counts, color='salmon', edgecolor='black')
+    plt.xlabel("Tick")
+    plt.ylabel("Total Bits Transmitted")
+    plt.title("Total Bits Transmitted per Tick")
+    plt.grid(True, axis='y', linestyle='--', alpha=0.7)
+    plt.tight_layout()
+    plt.show()
+
+
 def main(args):
     random.seed(123)
 
@@ -965,50 +1001,7 @@ def main(args):
         
     print("\nSimulation complete.")
 
-    from collections import defaultdict
-
-    # Dictionary to store stats per tick
-    tick_stats = defaultdict(lambda: {"packet_count": 0, "total_bits": 0})
-
-    for antenna in antennas:
-        for tick, packets in enumerate(antenna.packet_queues_tick):
-            tick_stats[tick]["packet_count"] += len(packets)
-            tick_stats[tick]["total_bits"] += sum(pkt.size for pkt in packets)
-
-    ticks = sorted(tick_stats.keys())
-    packet_counts = [tick_stats[tick]["packet_count"] for tick in ticks]
-
-    plt.figure(figsize=(10, 5))
-    plt.bar(ticks, packet_counts, color='skyblue', edgecolor='black')
-    plt.xlabel("Tick")
-    plt.ylabel("Number of Packets Transmitted")
-    plt.title("Packet Transmission per Tick")
-    plt.grid(True, axis='y', linestyle='--', alpha=0.7)
-    plt.tight_layout()
-    plt.show()
-
-    ticks = sorted(tick_stats.keys())
-    bit_counts = [tick_stats[tick]["total_bits"] for tick in ticks]
-
-    plt.figure(figsize=(10, 5))
-    plt.bar(ticks, bit_counts, color='salmon', edgecolor='black')
-    plt.xlabel("Tick")
-    plt.ylabel("Total Bits Transmitted")
-    plt.title("Total Bits Transmitted per Tick")
-    plt.grid(True, axis='y', linestyle='--', alpha=0.7)
-    plt.tight_layout()
-    plt.show()
-
-
-    
-    #plt.hist(total_packets_per_tick, bins=tfinal/dt, range=(90, 180), edgecolor='black')
-    #plt.xlabel('Value')
-    #plt.ylabel('Frequency')
-    #plt.title('Histogram (X-axis from 90 to 180)')
-    #plt.xlim(90, 180)  # Force x-axis to stay within 90–180
-    #plt.grid(True)
-    #plt.tight_layout()
-    #plt.show()
+    plottingFunction(antennas)
 
     # #petit test
     # for antenna in antennas:
