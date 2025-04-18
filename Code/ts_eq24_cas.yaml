@@ -40,7 +40,7 @@ ETUDE_DE_TRANSMISSION:
       read : ts_eq24_segments.txt
       #write: time_segments_ts.txt
    FREQUENCY :
-      BW : 150 #Bandwidth in MHz
-      SCS : 120 #Subcarrier spacing in KHz
+      BW : 20 #Bandwidth in MHz
+      SCS : 60 #Subcarrier spacing in KHz
    OVERHEAD :
       Bits : 6 # nombre de bits d'overhead

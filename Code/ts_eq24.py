@@ -1,6 +1,6 @@
 ## Écrire votre numéro d'équipe: 24
 ## Érire les noms et matricules de chaque membre de l'équipe
-#Eliott Goulet :
+#Eliott Goulet : 2147545
 #Alexandre Léonard: 2141842
 #Massine Azzoug: 2054259
 #Yanis Medouni: 2153125
@@ -193,7 +193,10 @@ def assign_rb_proportionally(total_nrb, antenna_weights, antennas):
     # Distribute the remaining RBs proportionally
     remaining_rb = total_nrb - used_rb
     if remaining_rb < 0:
-        raise ValueError("Total RBs too small to allocate at least 1 per antenna with UEs.")
+        ERROR(f"Il n'y a que {total_nrb} RB de disponible pour {used_rb} antennes populées, les options sont:\n \
+              - Augmenter bandwidth\n \
+              - Diminuer le scs\n \
+              - Diminuer la quantité d'antennes")
 
     # Get IDs of antennas with weight > 0
     weighted_antennas = [ant for ant in antennas if antenna_weights.get(ant.id, 0) > 0]
