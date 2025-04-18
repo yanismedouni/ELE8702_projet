@@ -49,6 +49,10 @@ class Packet:
         self.app = app
         self.source = source
 
+    def __repr__(self):
+        return (f"size={self.size}, timeTX={self.timeTX}, app={self.app}, source={self.source}")
+
+
 class UE:
     def __init__(self, id, app_name):
         self.id = id
@@ -888,41 +892,99 @@ def treat_cli_args(args) :
     
     return args[0]
 
-def plottingFunction(antennas):
-    from collections import defaultdict
+import matplotlib.pyplot as plt
+from collections import defaultdict
 
-    # Dictionary to store stats per tick
-    tick_stats = defaultdict(lambda: {"packet_count": 0, "total_bits": 0})
+def plottingFunction(antennas):
+    SLOT_DURATION = 1e-3  # 1 ms per tick
+
+    # Initialize per-tick per-app stats
+    app_colors = {"app1": "steelblue", "app2": "orange", "app3": "forestgreen"}
+    apps = ["app1", "app2", "app3"]
+    app_packet_counts = defaultdict(lambda: {app: 0 for app in apps})
+    app_bit_counts = defaultdict(lambda: {app: 0 for app in apps})
 
     for antenna in antennas:
         for tick, packets in enumerate(antenna.packet_queues_tick):
-            tick_stats[tick]["packet_count"] += len(packets)
-            tick_stats[tick]["total_bits"] += sum(pkt.size for pkt in packets)
+            for pkt in packets:
+                app = pkt.app.lower()
+                if app in apps:
+                    app_packet_counts[tick][app] += 1
+                    app_bit_counts[tick][app] += pkt.size
 
-    ticks = sorted(tick_stats.keys())
-    packet_counts = [tick_stats[tick]["packet_count"] for tick in ticks]
+    ticks = sorted(app_packet_counts.keys())
+    times = [tick * SLOT_DURATION * 1000 for tick in ticks]  # time in milliseconds
 
+    # Plot packet count histogram per app
     plt.figure(figsize=(10, 5))
-    plt.bar(ticks, packet_counts, color='skyblue', edgecolor='black')
+    bottom = [0] * len(ticks)
+    for app in apps:
+        values = [app_packet_counts[tick][app] for tick in ticks]
+        plt.bar(times, values, bottom=bottom, width=1, label=app, color=app_colors[app])
+        bottom = [bottom[i] + values[i] for i in range(len(values))]
     plt.xlabel("Tick")
     plt.ylabel("Number of Packets Transmitted")
     plt.title("Packet Transmission per Tick")
-    plt.grid(True, axis='y', linestyle='--', alpha=0.7)
+    plt.legend(loc='upper left')
+    plt.grid(True, axis='y', linestyle='--', alpha=0.5)
     plt.tight_layout()
     plt.show()
 
-    ticks = sorted(tick_stats.keys())
-    bit_counts = [tick_stats[tick]["total_bits"] for tick in ticks]
-
+    # Plot total bits histogram per app
     plt.figure(figsize=(10, 5))
-    plt.bar(ticks, bit_counts, color='salmon', edgecolor='black')
+    bottom = [0] * len(ticks)
+    for app in apps:
+        values = [app_bit_counts[tick][app] for tick in ticks]
+        plt.bar(times, values, bottom=bottom, width=1, label=app, color=app_colors[app])
+        bottom = [bottom[i] + values[i] for i in range(len(values))]
     plt.xlabel("Tick")
     plt.ylabel("Total Bits Transmitted")
-    plt.title("Total Bits Transmitted per Tick")
-    plt.grid(True, axis='y', linestyle='--', alpha=0.7)
+    plt.title("Bit Transmission per Tick")
+    plt.legend(loc='upper left')
+    plt.grid(True, axis='y', linestyle='--', alpha=0.5)
     plt.tight_layout()
     plt.show()
 
+    for antenna in antennas:
+        for tick, packets in enumerate(antenna.packet_queues_slot):
+            for pkt in packets:
+                app = pkt.app.lower()
+                if app in apps:
+                    app_packet_counts[tick][app] += 1
+                    app_bit_counts[tick][app] += pkt.size
+
+    ticks = sorted(app_packet_counts.keys())
+    times = [tick * SLOT_DURATION * 1000 for tick in ticks]  # time in milliseconds
+
+    # Plot packet count histogram per app
+    plt.figure(figsize=(10, 5))
+    bottom = [0] * len(ticks)
+    for app in apps:
+        values = [app_packet_counts[tick][app] for tick in ticks]
+        plt.bar(times, values, bottom=bottom, width=1, label=app, color=app_colors[app])
+        bottom = [bottom[i] + values[i] for i in range(len(values))]
+    plt.xlabel("Time (ms)")
+    plt.ylabel("Number of Packets Transmitted")
+    plt.title("Packet Transmission per Time Slot")
+    plt.legend(loc='upper left')
+    plt.grid(True, axis='y', linestyle='--', alpha=0.5)
+    plt.tight_layout()
+    plt.show()
+
+    # Plot total bits histogram per app
+    plt.figure(figsize=(10, 5))
+    bottom = [0] * len(ticks)
+    for app in apps:
+        values = [app_bit_counts[tick][app] for tick in ticks]
+        plt.bar(times, values, bottom=bottom, width=1, label=app, color=app_colors[app])
+        bottom = [bottom[i] + values[i] for i in range(len(values))]
+    plt.xlabel("Time (ms)")
+    plt.ylabel("Total Bits Transmitted")
+    plt.title("Bit Transmission per Time Slot")
+    plt.legend(loc='upper left')
+    plt.grid(True, axis='y', linestyle='--', alpha=0.5)
+    plt.tight_layout()
+    plt.show()
 
 def main(args):
     random.seed(123)
