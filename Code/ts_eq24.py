@@ -896,57 +896,51 @@ import matplotlib.pyplot as plt
 from collections import defaultdict
 
 def plottingFunction(antennas):
-    packet_counts = defaultdict(lambda: {"app1": 0, "app2": 0, "app3": 0})
-    bit_counts = defaultdict(lambda: {"app1": 0, "app2": 0, "app3": 0})
+    app_colors = {
+        "app1": "dodgerblue",
+        "app2": "orange",
+        "app3": "green"
+    }
+
+    # Initialize per-tick stats for each app
+    app_packet_counts = defaultdict(lambda: defaultdict(int))  # tick -> app -> count
+    app_bit_counts = defaultdict(lambda: defaultdict(int))     # tick -> app -> bits
 
     for antenna in antennas:
         for tick, packets in enumerate(antenna.packet_queues_tick):
             for pkt in packets:
                 app = pkt.app.lower()
-                if app in packet_counts[tick]:
-                    packet_counts[tick][app] += 1
-                    bit_counts[tick][app] += pkt.size
+                app_packet_counts[tick][app] += 1
+                app_bit_counts[tick][app] += pkt.size
 
-    ticks = sorted(packet_counts.keys())
+    ticks = sorted(set(app_packet_counts.keys()))
+    apps = ["app1", "app2", "app3"]
 
-    # Prepare data for packets
-    p_app1 = [packet_counts[tick]["app1"] for tick in ticks]
-    p_app2 = [packet_counts[tick]["app2"] for tick in ticks]
-    p_app3 = [packet_counts[tick]["app3"] for tick in ticks]
-
+    # -- Plot Packet Count Histogram --
     plt.figure(figsize=(10, 5))
-    plt.bar(ticks, p_app1, label="App1 (Streaming)", color='skyblue')
-    plt.bar(ticks, p_app2, bottom=p_app1, label="App2 (Drone)", color='orange')
-    bottom_app1_app2 = [a + b for a, b in zip(p_app1, p_app2)]
-    plt.bar(ticks, p_app3, bottom=bottom_app1_app2, label="App3 (Auto)", color='green')
-
+    for i, app in enumerate(apps):
+        values = [app_packet_counts[tick].get(app, 0) for tick in ticks]
+        bottoms = [sum(app_packet_counts[tick].get(a, 0) for a in apps[:i]) for tick in ticks]
+        plt.bar(ticks, values, bottom=bottoms, label=app, color=app_colors[app], width=1.0)
     plt.xlabel("Tick")
-    plt.ylabel("Number of Packets Transmitted")
-    plt.title("Packet Count per Tick by Application")
+    plt.ylabel("Packet Count")
+    plt.title("Histogram of Packets Transmitted per Tick (by App)")
     plt.legend(loc="upper left")
-    plt.grid(True, axis='y', linestyle='--', alpha=0.7)
     plt.tight_layout()
     plt.show()
 
-    # Prepare data for bits
-    b_app1 = [bit_counts[tick]["app1"] for tick in ticks]
-    b_app2 = [bit_counts[tick]["app2"] for tick in ticks]
-    b_app3 = [bit_counts[tick]["app3"] for tick in ticks]
-
+    # -- Plot Bit Count Histogram --
     plt.figure(figsize=(10, 5))
-    plt.bar(ticks, b_app1, label="App1 (Streaming)", color='skyblue')
-    plt.bar(ticks, b_app2, bottom=b_app1, label="App2 (Drone)", color='orange')
-    bottom_bits_app1_app2 = [a + b for a, b in zip(b_app1, b_app2)]
-    plt.bar(ticks, b_app3, bottom=bottom_bits_app1_app2, label="App3 (Auto)", color='green')
-
+    for i, app in enumerate(apps):
+        values = [app_bit_counts[tick].get(app, 0) for tick in ticks]
+        bottoms = [sum(app_bit_counts[tick].get(a, 0) for a in apps[:i]) for tick in ticks]
+        plt.bar(ticks, values, bottom=bottoms, label=app, color=app_colors[app], width=1.0)
     plt.xlabel("Tick")
-    plt.ylabel("Total Bits Transmitted")
-    plt.title("Bits Transmitted per Tick by Application")
+    plt.ylabel("Total Bits")
+    plt.title("Histogram of Bits Transmitted per Tick (by App)")
     plt.legend(loc="upper left")
-    plt.grid(True, axis='y', linestyle='--', alpha=0.7)
     plt.tight_layout()
     plt.show()
-
 
 def main(args):
     random.seed(123)
