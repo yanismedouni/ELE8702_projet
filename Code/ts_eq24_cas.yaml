@@ -41,6 +41,6 @@ ETUDE_DE_TRANSMISSION:
       #write: time_segments_ts.txt
    FREQUENCY :
       BW : 20 #Bandwidth in MHz
-      SCS : 15 #Subcarrier spacing in KHz
+      SCS : 60 #Subcarrier spacing in KHz
    OVERHEAD :
       Bits : 6 # nombre de bits d'overhead
