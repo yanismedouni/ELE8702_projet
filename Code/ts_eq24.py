@@ -143,55 +143,6 @@ def generate_packet_length_and_arrivals(data_case, devices, ues):
 
         print(f"\rUE traffic: {ue.id}", end="")
 
-def plot_transmission_summary(packet_counts_per_tick):
-    ticks = set()
-    packet_counts = defaultdict(int)
-    byte_counts = defaultdict(int)
-
-    for entry in packet_counts_per_tick:
-        tick = entry['tick']
-        pkt_count = entry['packet_count']
-        byte_count = entry['total_bytes']
-
-        packet_counts[tick] += pkt_count
-        byte_counts[tick] += byte_count
-
-    # Create ordered lists
-    ticks = sorted(packet_counts.keys())
-    total_pkts_per_tick = [packet_counts[tick] for tick in ticks]
-    total_bytes_per_tick = [byte_counts[tick] for tick in ticks]
-    avg_pkt_size_per_tick = [
-        byte_counts[t] / packet_counts[t] if packet_counts[t] else 0 for t in ticks
-    ]
-
-    plt.figure(figsize=(8, 4))
-    plt.hist(total_pkts_per_tick, bins=20, color='skyblue', edgecolor='black')
-    plt.title("Histogram: Packets Transmitted per Tick")
-    plt.xlabel("Packets per Tick")
-    plt.ylabel("Number of Ticks")
-    plt.grid(True)
-    plt.tight_layout()
-    plt.show()
-
-    plt.figure(figsize=(8, 4))
-    plt.hist(total_bytes_per_tick, bins=20, color='orange', edgecolor='black')
-    plt.title("Histogram: Bytes Transmitted per Tick")
-    plt.xlabel("Bytes per Tick")
-    plt.ylabel("Number of Ticks")
-    plt.grid(True)
-    plt.tight_layout()
-    plt.show()
-
-    plt.figure(figsize=(8, 4))
-    plt.hist(avg_pkt_size_per_tick, bins=20, color='green', edgecolor='black')
-    plt.title("Histogram: Average Packet Size per Tick")
-    plt.xlabel("Average Packet Size (Bytes)")
-    plt.ylabel("Number of Ticks")
-    plt.grid(True)
-    plt.tight_layout()
-    plt.show()
-
-
 
 ##############################################
 #       RESOURCE ALLOCATION FUNCTIONS       #
@@ -595,171 +546,6 @@ def gen_lattice_coords(terrain_shape: dict, N: int):
         ERROR(''.join(msg), 2)
     return coords
 
-##############################################
-#             PLOTTING FUNCTIONS             #
-##############################################
-
-def plot_transmissions(ue_data_frames, antenna_data_frames, tstart, tfinal, dt, ues, antennas, pdf_filename="ts_eq24_graphiques.pdf"):
-    with PdfPages(pdf_filename) as pdf:
-        ue_data_frames = np.array(ue_data_frames)
-        antenna_data_frames = np.array(antenna_data_frames)
-
-        numTicks = int((tfinal - tstart) / dt)
-        time_slots = np.linspace(tstart, tfinal, numTicks + 1)
-
-        # Histogramme des bits envoyés par tick (UEs)
-        ue_avg_per_tick = np.mean(ue_data_frames, axis=0)
-        plt.figure(figsize=(12, 6))
-        plt.bar(time_slots[:-1], ue_avg_per_tick, width=dt, color='b', alpha=0.7, align='edge')
-        plt.xlabel("Temps (s)")
-        plt.ylabel("Moyenne des bits envoyés")
-        plt.title("Moyenne des transmissions des UEs par tick")
-        plt.xticks(time_slots, [f"{t:.1f}" for t in time_slots], rotation=45, fontsize=9)
-        plt.grid(axis="y", linestyle="--", alpha=0.7)
-        pdf.savefig()
-        plt.close()
-
-        # Histogramme des bits reçus par antenne
-        max_subplots = 3  
-        num_antennas = len(antennas)
-        num_figures = (num_antennas + max_subplots - 1) // max_subplots
-
-        for fig_idx in range(num_figures):
-            fig, axes = plt.subplots(min(max_subplots, num_antennas - fig_idx * max_subplots), 1, 
-                                     figsize=(12, 4 * max_subplots), sharex=True)
-
-            if isinstance(axes, plt.Axes):
-                axes = [axes]
-
-            for i, antenna_idx in enumerate(range(fig_idx * max_subplots, min((fig_idx + 1) * max_subplots, num_antennas))):
-                antenna = antennas[antenna_idx]
-                axes[i].bar(time_slots[:-1], antenna_data_frames[antenna_idx], width=dt, color='r', alpha=0.7, align='edge')
-                axes[i].set_ylabel("Bits reçus")
-                axes[i].set_title(f"Réception de l'antenne {antenna.id}")
-                axes[i].grid(axis="y", linestyle="--", alpha=0.7)
-                axes[i].set_xticks(time_slots)
-                axes[i].set_xticklabels([f"{t:.1f}" for t in time_slots], rotation=45, fontsize=9)
-
-            axes[-1].set_xlabel("Temps (s)")
-            plt.tight_layout()
-            pdf.savefig()
-            plt.close()
-
-        # Diagramme à barres du nombre total de bits reçus par chaque antenne
-        total_bits_received = np.sum(antenna_data_frames, axis=1)  
-        plt.figure(figsize=(12, 6))
-        plt.bar([f"{antenna.id}" for antenna in antennas], total_bits_received, color='g', alpha=0.7)
-        plt.xlabel("Antennes")
-        plt.ylabel("Total des bits reçus")
-        plt.title("Total des bits reçus par chaque antenne")
-        plt.xticks(fontsize=9)
-        plt.grid(axis="y", linestyle="--", alpha=0.7)
-        plt.tight_layout()
-        pdf.savefig()
-        plt.close()
-
-        # Boxplot des transmissions reçues par antenne
-        plt.figure(figsize=(12, 6))
-        plt.boxplot(antenna_data_frames, positions=np.arange(numTicks), widths=0.5)
-        plt.xlabel("Tick")
-        plt.ylabel("Bits reçus")
-        plt.title("Distribution des bits reçus par tick (Antennes)")
-        plt.xticks(np.arange(numTicks), [f"{t:.1f}" for t in time_slots[:-1]], rotation=45, fontsize=9)
-        plt.grid(axis="y", linestyle="--", alpha=0.7)
-        pdf.savefig()
-        plt.close()
-
-        # Heatmap des transmissions par antenne
-        plt.figure(figsize=(12, 6))
-        plt.imshow(antenna_data_frames, aspect='auto', cmap='Reds', interpolation='nearest')
-        plt.colorbar(label="Bits reçus")
-        plt.xlabel("Tick")
-        plt.ylabel("Antennes")
-        plt.title("Carte thermique des bits reçus par antenne")
-        plt.xticks(np.arange(numTicks), [f"{t:.1f}" for t in time_slots[:-1]], rotation=45, fontsize=9)
-        pdf.savefig()
-        plt.close()
-
-        # Scatter plot avec évolution des bits reçus par antenne
-        plt.figure(figsize=(12, 6))
-        for antenna_idx in range(len(antennas)):
-            plt.scatter(time_slots[:-1], antenna_data_frames[antenna_idx], label=f"Antenne {antennas[antenna_idx].id}")
-            plt.plot(time_slots[:-1], antenna_data_frames[antenna_idx], linestyle='-', alpha=0.7)
-        plt.xlabel("Temps (s)")
-        plt.ylabel("Bits reçus")
-        plt.title("Évolution des transmissions par antenne")
-        plt.legend()
-        plt.grid(alpha=0.7)
-        pdf.savefig()
-        plt.close()
-
-    print(f"Plots saved to {pdf_filename}")
-
-##############################################
-#           SIMULATION FUNCTIONS             #
-##############################################
-
-def compute_antenna_transmission(data_case, ue_data_frames, antennas, ues):
-    tstart = data_case["ETUDE_DE_TRANSMISSION"]["CLOCK"]["tstart"]
-    tfinal = data_case["ETUDE_DE_TRANSMISSION"]["CLOCK"]["tfinal"]
-    dt = data_case["ETUDE_DE_TRANSMISSION"]["CLOCK"]["dt"]
-    numTicks = int((tfinal - tstart)/dt)
-
-    antenna_data_frames = [[0 for _ in range(numTicks)] for _ in range(len(antennas))]
-
-    for ue in ues:
-        for tick in range(1, numTicks + 1):
-            antenna_data_frames[int(ue.assoc_ant)][tick - 1] += ue_data_frames[int(ue.id)][tick - 1]
-
-    return antenna_data_frames
-
-def generate_ue_transmission(data_case, devices, ues, antennas):
-    tstart = data_case["ETUDE_DE_TRANSMISSION"]["CLOCK"]["tstart"]
-    tfinal = data_case["ETUDE_DE_TRANSMISSION"]["CLOCK"]["tfinal"]
-    dt = data_case["ETUDE_DE_TRANSMISSION"]["CLOCK"]["dt"]
-    numTicks = int((tfinal - tstart) / dt)
-
-    ue_data_frames = [[0 for _ in range(numTicks)] for _ in range(len(ues))]
-    antenna_data_frames = [[0 for _ in range(numTicks)] for _ in range(len(antennas))]
-
-    segment_file_name = data_case["ETUDE_DE_TRANSMISSION"]["CLOCK"]["read"]
-    segments = read_segment_file(segment_file_name)
-
-    for tick in range(1, numTicks + 1):
-        for segment in segments:
-            ue_id = segment[0]
-            start = segment[1]
-            end = segment[2]
-            ue_R = devices["UES"][ues[ue_id].group]["R"]
-
-            if start > dt * (tick - 1) and start < tick * dt:
-                if end < tick * dt:
-                    ue_data_frames[ue_id][tick - 1] += (end - start) * ue_R
-                elif end > tick * dt:
-                    ue_data_frames[ue_id][tick - 1] += ((tick * dt) - start) * ue_R
-            elif start < dt * (tick - 1):
-                if end > dt * (tick - 1) and end < tick * dt:
-                    ue_data_frames[ue_id][tick - 1] += (end - (dt * (tick - 1))) * ue_R
-                elif end > tick * dt:
-                    ue_data_frames[ue_id][tick - 1] += ((tick * dt) - (dt * (tick - 1))) * ue_R
-
-    with open("ts_eq24_transmission_ue.txt", "w") as file:
-        for ue in ues:
-            file.write(f"{ue.id}\n")
-            for tick in range(numTicks):
-                file.write(f"{float(tick)} {float(ue_data_frames[int(ue.id)][tick - 1])}\n")
-
-    for ue in ues:
-        for tick in range(1, numTicks + 1):
-            antenna_data_frames[int(ue.assoc_ant)][tick - 1] += ue_data_frames[int(ue.id)][tick - 1]
-
-    with open("ts_eq24_transmission_ant.txt", "w") as file:
-        for antenna in antennas:
-            file.write(f"{antenna.id}\n")
-            for tick in range(numTicks):
-                file.write(f"{float(tick)}: {float(antenna_data_frames[int(antenna.id)][tick - 1])}\n")
-
-    return ue_data_frames, antenna_data_frames
 
 def verify_equipment_validty(data_case,devices,ues,antennas):
     error_list = set()
@@ -897,51 +683,68 @@ import matplotlib.pyplot as plt
 from collections import defaultdict
 
 def plottingFunction(antennas, dt):
+    app_colors = {
+        "app1_full": "steelblue",
+        "app1_frag": "lightblue",
+        "app2": "orange",
+        "app3": "forestgreen"
+    }
 
-    # Initialize per-tick per-app stats
-    app_colors = {"app1": "steelblue", "app2": "orange", "app3": "forestgreen"}
-    apps = ["app1", "app2", "app3"]
-    app_packet_counts = defaultdict(lambda: {app: 0 for app in apps})
-    app_bit_counts = defaultdict(lambda: {app: 0 for app in apps})
+    packet_counts = defaultdict(lambda: {
+        "app1_full": 0, "app1_frag": 0, "app2": 0, "app3": 0
+    })
+    bit_counts = defaultdict(lambda: {
+        "app1_full": 0, "app1_frag": 0, "app2": 0, "app3": 0
+    })
 
     for antenna in antennas:
         for tick, packets in enumerate(antenna.packet_queues_tick):
             for pkt in packets:
                 app = pkt.app.lower()
-                if app in apps:
-                    app_packet_counts[tick][app] += 1
-                    app_bit_counts[tick][app] += pkt.size
+                if app == "app1":
+                    key = "app1_frag" if pkt.frag_flag else "app1_full"
+                elif app == "app2":
+                    key = "app2" if not pkt.frag_flag else None
+                elif app == "app3":
+                    key = "app3" if not pkt.frag_flag else None
+                else:
+                    key = None
 
-    ticks = sorted(app_packet_counts.keys())
-    times = [tick * dt for tick in ticks]  # time in milliseconds
+                if key:
+                    packet_counts[tick][key] += 1
+                    bit_counts[tick][key] += pkt.size
 
-    # Plot packet count histogram per app
+    ticks = sorted(packet_counts.keys())
+    times = [tick * dt for tick in ticks]
+    plot_keys = ["app1_full", "app1_frag", "app2", "app3"]
+
     plt.figure(figsize=(10, 5))
     bottom = [0] * len(ticks)
-    for app in apps:
-        values = [app_packet_counts[tick][app] for tick in ticks]
-        plt.bar(times, values, bottom=bottom, width=dt, label=app, color=app_colors[app])
+    for key in plot_keys:
+        values = [packet_counts[tick][key] for tick in ticks]
+        plt.bar(times, values, bottom=bottom, width=dt, label=key, color=app_colors[key])
         bottom = [bottom[i] + values[i] for i in range(len(values))]
+
     plt.xlabel("Time (ms)")
     plt.ylabel("Number of Packets Transmitted")
-    plt.title(f"Packet Transmission received by all antennas (tick={dt}ms)")
-    plt.legend(loc='upper left')
-    plt.grid(True, axis='y', linestyle='--', alpha=0.5)
+    plt.title(f"Packet Transmission (tick={dt}ms)")
+    plt.legend(loc="upper left")
+    plt.grid(True, axis="y", linestyle="--", alpha=0.5)
     plt.tight_layout()
     plt.show()
 
-    # Plot total bits histogram per app
     plt.figure(figsize=(10, 5))
     bottom = [0] * len(ticks)
-    for app in apps:
-        values = [app_bit_counts[tick][app] for tick in ticks]
-        plt.bar(times, values, bottom=bottom, width=dt, label=app, color=app_colors[app])
+    for key in plot_keys:
+        values = [bit_counts[tick][key] for tick in ticks]
+        plt.bar(times, values, bottom=bottom, width=dt, label=key, color=app_colors[key])
         bottom = [bottom[i] + values[i] for i in range(len(values))]
+
     plt.xlabel("Time (ms)")
     plt.ylabel("Total Bits Transmitted")
-    plt.title(f"Bit Transmission received by all antennas (tick={dt}ms)")
-    plt.legend(loc='upper left')
-    plt.grid(True, axis='y', linestyle='--', alpha=0.5)
+    plt.title(f"Bit Transmission (tick={dt}ms)")
+    plt.legend(loc="upper left")
+    plt.grid(True, axis="y", linestyle="--", alpha=0.5)
     plt.tight_layout()
     plt.show()
 
