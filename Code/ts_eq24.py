@@ -48,6 +48,9 @@ class Packet:
         self.app = app
         self.source = source
 
+    def __repr__(self):
+        return (f"size={self.size}, timeTX={self.timeTX}, app={self.app}, source={self.source}")
+
 class UE:
     def __init__(self, id, app_name):
         self.id = id
@@ -1039,6 +1042,7 @@ def main(args):
         
     print("\nSimulation complete.")
 
+    print(antennas[0].packet_queues_tick)
     # #petit test
     # for antenna in antennas:
     #     for packets_in_tick in antenna.packet_queues_tick:
