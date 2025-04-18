@@ -1,6 +1,10 @@
-## Écrire votre numéro d'équipe
+## Écrire votre numéro d'équipe: 24
 ## Érire les noms et matricules de chaque membre de l'équipe
-## CECI EST OBLIGATOIRE
+#Eliott Goulet :
+#Alexandre Léonard: 2141842
+#Massine Azzoug: 2054259
+#Yanis Medouni: 2153125
+#Francis Desrochers: 2127341
 
 import sys
 import math
@@ -13,11 +17,6 @@ import numpy as np
 from matplotlib.backends.backend_pdf import PdfPages
 from collections import defaultdict
 from traffic import *
-
-
-##############################################
-#                 CLASSES                    #
-##############################################
 
 class Antenna:
     def __init__(self, id):
@@ -75,10 +74,6 @@ class UE:
 
     def __repr__(self):
         return f"UE(id={self.id}, app={self.app}, coords={self.coords}, ant={self.assoc_ant}, cqi={self.cqi})"
-
-##############################################
-#       TRAFFIC MANAGEMENT FUNCTIONS         #
-##############################################
 
 def generate_expo_inter_arrivals(tfinal, inter_mean_ms):
     inter_mean_s = inter_mean_ms / 1000.0
@@ -143,11 +138,6 @@ def generate_packet_length_and_arrivals(data_case, devices, ues):
 
         print(f"\rUE traffic: {ue.id}", end="")
 
-
-##############################################
-#       RESOURCE ALLOCATION FUNCTIONS       #
-##############################################
-
 def get_nrb_from_bw_scs(bw_mhz, scs_khz):
     table = {
         15: [(4.32, 24), (49.5, 275)],
@@ -191,7 +181,7 @@ def assign_rb_proportionally(total_nrb, antenna_weights, antennas):
     nrb_alloc = {}
     used_rb = 0
 
-    # Step 1: Give 1 RB to all antennas with weight > 0
+    # Give 1 RB to all antennas with weight > 0
     for antenna in antennas:
         weight = antenna_weights.get(antenna.id, 0)
         if weight > 0:
@@ -200,7 +190,7 @@ def assign_rb_proportionally(total_nrb, antenna_weights, antennas):
         else:
             nrb_alloc[antenna.id] = 0  # No UEs or no weight
 
-    # Step 2: Distribute the remaining RBs proportionally
+    # Distribute the remaining RBs proportionally
     remaining_rb = total_nrb - used_rb
     if remaining_rb < 0:
         ERROR(f"Il n'y a que {total_nrb} RB de disponible pour {used_rb} antennes populées, les options sont:\n \
@@ -219,20 +209,16 @@ def assign_rb_proportionally(total_nrb, antenna_weights, antennas):
         nrb_alloc[antenna.id] += extra_rb
         used_rb += extra_rb
 
-    # Step 3: Distribute any leftover RBs one by one to top-weight antennas
+    # Distribute any leftover RBs one by one to top-weight antennas
     leftover = total_nrb - used_rb
     sorted_ids = sorted(weighted_antennas, key=lambda a: antenna_weights[a.id], reverse=True)
     for i in range(leftover):
         nrb_alloc[sorted_ids[i % len(sorted_ids)].id] += 1
 
-    # Step 4: Assign final values
+    # Assign final values
     for antenna in antennas:
         antenna.nrb = nrb_alloc[antenna.id]
 
-
-##############################################
-#         PATHLOSS COMPUTATION FUNCTIONS     #
-##############################################
 
 def findMinMaxPathloss(plFileName):
     min_val = math.inf
@@ -366,10 +352,6 @@ def generate_pathlosses(data_case,ues,antennas):
                 pathlosses[int(ue.id)][int(antenna.id)]=threegpp(scenario, frequency, distance, antenna_height, UE_height, ue.id, antenna.id, visibility_file_name)
     return pathlosses
 
-##############################################
-#             FILE FUNCTIONS              #
-##############################################
-
 def get_from_dict(key, data, res=None, curr_level=1, min_level=1):
     if res:
         return res
@@ -404,7 +386,6 @@ def ERROR(msg , code = 1):
     print(f"\n\texit code = {code}\n\n\t\n")
     sys.exit(code)
 
-# Fonction pour créer le fichier de pathloss ts_eq24_pl.txt
 def create_pathloss_file(data_case, ues, antennas, pathlosses):
     model = data_case["ETUDE_DE_TRANSMISSION"]["PATHLOSS"]["model"]
     scenario = data_case["ETUDE_DE_TRANSMISSION"]["PATHLOSS"]["scenario"]
@@ -413,7 +394,6 @@ def create_pathloss_file(data_case, ues, antennas, pathlosses):
             for antenna in antennas:
                 file.write(f"{ue.id:<5} {antenna.id:<5} {pathlosses[int(ue.id)][int(antenna.id)]:<20} {model:<8} {scenario}\n")
 
-# Fonction pour créer le fichier d'association d'antennes
 def create_assoc_files(data_case, ues, antennas,pathlosses):
     # Initialiser les associations
     for antenna in antennas:
@@ -490,10 +470,6 @@ def read_coord_file(data_case,devices):
                 ue.coords = (elements[3],elements[4])
                 ues.append(ue)
     return (antennas, ues)
-
-##############################################
-#           COORDINATES FUNCTIONS            #
-##############################################
 
 def gen_random_coords(terrain_shape: dict, n):
     shape = list(terrain_shape.keys())[0]
@@ -664,11 +640,6 @@ def lab3(data_case,devices):
         ueID_offset = len(ues)    
     return (antennas,ues)
 
-##############################################
-#                    MAIN                    #
-##############################################
-
-
 
 def treat_cli_args(args) :
     if((len(args)) > 1 ):
@@ -681,9 +652,6 @@ def treat_cli_args(args) :
         exit()
     
     return args[0]
-
-import matplotlib.pyplot as plt
-from collections import defaultdict
 
 def plottingFunction(antennas, dt):
     app_colors = {
@@ -754,7 +722,6 @@ def plottingFunction(antennas, dt):
 def main(args):
     random.seed(123)
 
-    # Load YAML configuration files
     data_case = read_yaml_file("ts_eq24_cas.yaml")
     devices = read_yaml_file("devices_db.yaml")
     print("Case loaded")    
@@ -829,12 +796,6 @@ def main(args):
     print("\nSimulation complete.")
 
     plottingFunction(antennas, dt)
-
-    # #petit test
-    # for antenna in antennas:
-    #     for packets_in_tick in antenna.packet_queues_tick:
-    #         for packet in packets_in_tick:
-    #             print(packet.size)    
 
 if __name__ == '__main__':
     main(sys.argv[1:])
