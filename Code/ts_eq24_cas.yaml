@@ -20,10 +20,10 @@ ETUDE_DE_TRANSMISSION:
          number : 40
       UE1-App1 : # 4K streaming devices
          number : 40
-      #UE2-App2 : # Drones devices
-      #   number : 40        
-      #UE3-App3 : # Auto detect devices
-      #   number: 1000 # a changer lors de la remise; done for test purposes
+      UE2-App2 : # Drones devices
+        number : 40        
+      UE3-App3 : # Auto detect devices
+        number: 10 # a changer lors de la remise; done for test purposes
    GEOMETRY:
       Surface:
          rectangle:

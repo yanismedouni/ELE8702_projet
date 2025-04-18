@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.backends.backend_pdf import PdfPages
 from collections import defaultdict
+from traffic import *
 
 
 ##############################################
@@ -47,9 +48,6 @@ class Packet:
         self.timeRX = None
         self.app = app
         self.source = source
-
-    def __repr__(self):
-        return (f"size={self.size}, timeTX={self.timeTX}, app={self.app}, source={self.source}")
 
 class UE:
     def __init__(self, id, app_name):
@@ -139,105 +137,6 @@ def generate_packet_length_and_arrivals(data_case, devices, ues):
         ]
 
         print(f"\rUE traffic: {ue.id}", end="")
-
-def slot_traffic_creation(data_case, antennas, ues, current_time, tick):
-    from collections import deque
-
-    # Parameters from data_case
-    NOH = data_case["ETUDE_DE_TRANSMISSION"]["OVERHEAD"]["Bits"]  # Number of overhead bits
-    NRE_PER_RB = 12 * 14 - NOH  # Number of Resource Elements per RB per slot (1 slot = 14 OFDM symbols)
-    BITS_PER_RE = 1  # Bits per Resource Element (can be adjusted based on modulation)
-    all_priorities = {"app3": 1, "app2": 2, "app1": 3}  # Application priority map: auto > drone > streaming
-
-    # Convert UE packet and arrival lists to deques for efficient pop from the front
-    for ue in ues:
-        if not isinstance(ue.arrivals, deque):
-            ue.arrivals = deque(ue.arrivals)
-        if not isinstance(ue.packets, deque):
-            ue.packets = deque(ue.packets)
-
-    for antenna in antennas:
-        current_slot_packets = []  # Packets scheduled in current slot
-        slot_rb_total = antenna.nrb  # Total RBs for this antenna in the current slot
-        rb_index = 0  # Track used RBs
-
-        all_ready_packets = []  # Packets that are ready to be scheduled
-
-        # Gather all ready packets for UEs associated with this antenna
-        for ue in ues:
-            if ue.assoc_ant == antenna.id:
-                ue_app = ue.app.lower()
-                priority = all_priorities.get(ue_app, 99)
-                eff = ue.eff
-                eff_rb_bits = eff * NRE_PER_RB * BITS_PER_RE  # Bits that can be sent with 1 RB
-
-                # Fetch all packets that are ready at current_time
-                while ue.arrivals and current_time >= ue.arrivals[0]:
-                    pkt_size = ue.packets.popleft()
-                    ue.arrivals.popleft()
-                    all_ready_packets.append(
-                        (
-                            priority,  # App priority
-                            current_time,  # Used for sorting by arrival time
-                            eff_rb_bits,  # Bits per RB for this UE
-                            pkt_size,  # Size of the packet in bits
-                            ue,  # UE object
-                            Packet(  # The actual packet object to schedule
-                                source=ue,
-                                app=ue.app,
-                                packet_id=len(ue.packets),
-                                packet_size=pkt_size,
-                                timeTX=current_time
-                            )
-                        )
-                    )
-
-        # Sort all ready packets: first by priority, then by arrival time
-        all_ready_packets.sort(key=lambda x: (x[0], x[1]))
-
-        # Try to allocate each packet to RBs in the slot
-        for _, _, eff_rb_bits, pkt_size, ue, pkt in all_ready_packets:
-            if eff_rb_bits <= 0:
-                continue  # Skip UEs with no spectral efficiency
-
-            rb_needed = math.ceil(pkt_size / eff_rb_bits)  # RBs needed for full packet
-
-            if rb_index + rb_needed <= slot_rb_total:
-                # Enough RBs available: schedule entire packet
-                current_slot_packets.append(pkt)
-                rb_index += rb_needed
-            else:
-                # Not enough RBs: try to schedule a fragment
-                remaining_rb = slot_rb_total - rb_index
-                if remaining_rb > 0:
-                    fragment_bits = int(remaining_rb * eff_rb_bits)
-                    if fragment_bits >= 1:
-                        # Create and schedule fragment
-                        fragment_pkt = Packet(
-                            source=pkt.source,
-                            app=pkt.app,
-                            packet_id=pkt.id,
-                            packet_size=fragment_bits,
-                            timeTX=current_time
-                        )
-                        current_slot_packets.append(fragment_pkt)
-
-                        # Save unsent remainder to be retried in next slot
-                        ue.arrivals.appendleft(pkt.timeTX)
-                        ue.packets.appendleft(pkt_size - fragment_bits)
-                        rb_index += remaining_rb
-                else:
-                    # No RBs left, defer whole packet
-                    ue.arrivals.appendleft(pkt.timeTX)
-                    ue.packets.appendleft(pkt_size)
-                break  # Stop processing packets for this slot
-
-        # Store packets scheduled this slot
-        antenna.packet_queues_slot.append(current_slot_packets)
-        if tick == len(antenna.packet_queues_tick) - 1:
-            antenna.packet_queues_tick[-1].extend(current_slot_packets)
-        else:
-            antenna.packet_queues_tick.append(current_slot_packets)
 
 def plot_transmission_summary(packet_counts_per_tick):
     ticks = set()
@@ -335,19 +234,42 @@ def assign_rb_proportionally(total_nrb, antenna_weights, antennas):
     total_weight = sum(antenna_weights.values())
     nrb_alloc = {}
     used_rb = 0
+
+    # Step 1: Give 1 RB to all antennas with weight > 0
     for antenna in antennas:
         weight = antenna_weights.get(antenna.id, 0)
-        nrb = int((weight / total_weight) * total_nrb)
-        nrb_alloc[antenna.id] = nrb
-        used_rb += nrb
+        if weight > 0:
+            nrb_alloc[antenna.id] = 1
+            used_rb += 1
+        else:
+            nrb_alloc[antenna.id] = 0  # No UEs or no weight
 
-    remaining = total_nrb - used_rb
-    sorted_ids = sorted(antenna_weights.keys(), key=lambda k: antenna_weights[k], reverse=True)
-    for i in range(remaining):
-        nrb_alloc[sorted_ids[i % len(sorted_ids)]] += 1
+    # Step 2: Distribute the remaining RBs proportionally
+    remaining_rb = total_nrb - used_rb
+    if remaining_rb < 0:
+        raise ValueError("Total RBs too small to allocate at least 1 per antenna with UEs.")
 
+    # Get IDs of antennas with weight > 0
+    weighted_antennas = [ant for ant in antennas if antenna_weights.get(ant.id, 0) > 0]
+    remaining_weight = sum(antenna_weights[ant.id] for ant in weighted_antennas)
+
+    for antenna in weighted_antennas:
+        weight = antenna_weights[antenna.id]
+        share = (weight / remaining_weight) if remaining_weight > 0 else 0
+        extra_rb = int(share * remaining_rb)
+        nrb_alloc[antenna.id] += extra_rb
+        used_rb += extra_rb
+
+    # Step 3: Distribute any leftover RBs one by one to top-weight antennas
+    leftover = total_nrb - used_rb
+    sorted_ids = sorted(weighted_antennas, key=lambda a: antenna_weights[a.id], reverse=True)
+    for i in range(leftover):
+        nrb_alloc[sorted_ids[i % len(sorted_ids)].id] += 1
+
+    # Step 4: Assign final values
     for antenna in antennas:
         antenna.nrb = nrb_alloc[antenna.id]
+
 
 ##############################################
 #         PATHLOSS COMPUTATION FUNCTIONS     #
@@ -1025,6 +947,9 @@ def main(args):
     generate_packet_length_and_arrivals(data_case, devices, ues)
     print("\nUEs traffic generated")
 
+    with open("pkt_size.txt", "w") as file:
+        pass
+
     #Traffic Simulation
     current_time = 0
     slot_count = 0
@@ -1042,12 +967,17 @@ def main(args):
         
     print("\nSimulation complete.")
 
-    print(antennas[0].packet_queues_tick)
-    # #petit test
-    # for antenna in antennas:
-    #     for packets_in_tick in antenna.packet_queues_tick:
-    #         for packet in packets_in_tick:
-    #             print(packet.size)    
+    #petit test
+    for antenna in antennas:
+        if not antenna.packet_queues_tick:
+            print(f"{antenna.id}:empty")
+        else:
+            print(f"{antenna.id}:stuff")
+    print (antennas[10].packet_queues_tick)
+    for tick_packets in antennas[10].packet_queues_tick:
+        for packet in tick_packets:
+            print(packet)
+
 
 if __name__ == '__main__':
     main(sys.argv[1:])
