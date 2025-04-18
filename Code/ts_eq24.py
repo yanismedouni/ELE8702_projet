@@ -11,6 +11,8 @@ import pathloss_3gpp_eq24
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.backends.backend_pdf import PdfPages
+from collections import defaultdict
+
 
 ##############################################
 #                 CLASSES                    #
@@ -213,8 +215,66 @@ def slot_traffic_creation( data_case, antennas, ues, current_time, tick):
         if tick == len(antenna.packet_queues_tick)-1:
             antenna.packet_queues_tick[-1].extend(current_packet_queue)
         else:
-            antenna.packet_queues_tick.append(current_packet_queue)
-        
+            antenna.packet_queues_tick.append(current_packet_queue) 
+
+    total_bytes = sum(pkt.size for pkt in current_packet_queue)
+
+    antenna_transmissions = {
+        "tick": tick,
+        "antenna_id": antenna.id,
+        "packet_count": len(current_packet_queue),
+        "total_bytes": total_bytes,
+    }
+    return antenna_transmissions
+
+def plot_transmission_summary(packet_counts_per_tick):
+    ticks = set()
+    packet_counts = defaultdict(int)
+    byte_counts = defaultdict(int)
+
+    for entry in packet_counts_per_tick:
+        tick = entry['tick']
+        pkt_count = entry['packet_count']
+        byte_count = entry['total_bytes']
+
+        packet_counts[tick] += pkt_count
+        byte_counts[tick] += byte_count
+
+    # Create ordered lists
+    ticks = sorted(packet_counts.keys())
+    total_pkts_per_tick = [packet_counts[tick] for tick in ticks]
+    total_bytes_per_tick = [byte_counts[tick] for tick in ticks]
+    avg_pkt_size_per_tick = [
+        byte_counts[t] / packet_counts[t] if packet_counts[t] else 0 for t in ticks
+    ]
+
+    plt.figure(figsize=(8, 4))
+    plt.hist(total_pkts_per_tick, bins=20, color='skyblue', edgecolor='black')
+    plt.title("Histogram: Packets Transmitted per Tick")
+    plt.xlabel("Packets per Tick")
+    plt.ylabel("Number of Ticks")
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
+
+    plt.figure(figsize=(8, 4))
+    plt.hist(total_bytes_per_tick, bins=20, color='orange', edgecolor='black')
+    plt.title("Histogram: Bytes Transmitted per Tick")
+    plt.xlabel("Bytes per Tick")
+    plt.ylabel("Number of Ticks")
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
+
+    plt.figure(figsize=(8, 4))
+    plt.hist(avg_pkt_size_per_tick, bins=20, color='green', edgecolor='black')
+    plt.title("Histogram: Average Packet Size per Tick")
+    plt.xlabel("Average Packet Size (Bytes)")
+    plt.ylabel("Number of Ticks")
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
+
 
 
 ##############################################
@@ -951,21 +1011,24 @@ def main(args):
         num_ticks = int((tfinal - tstart) / dt)
         slot_duration = 1.0 / (2 ** (math.log2(scs_khz / 15))) # en ms
     
+        packet_counts_per_tick = []
         #Traffic Simulation
         current_time = 0
         for tick in range(num_ticks+1):
             current_time = tstart + tick * dt
-            slot_traffic_creation(data_case, antennas, ues, current_time, tick)
+            antenna_transmission = slot_traffic_creation(data_case, antennas, ues, current_time, tick)
+            packet_counts_per_tick.append(antenna_transmission)
             print(f"\rsimulation time: {current_time} ms", end="")
         else:
             print(f"\rsimulation time: {current_time} ms", end="")
         print("\nSimulation complete.")
 
+        plot_transmission_summary(packet_counts_per_tick)
         #petit test
-        for antenna in antennas:
-            for packets_in_tick in antenna.packet_queues_tick:
-                for packet in packets_in_tick:
-                    print(packet.size)
+        #for antenna in antennas:
+        #    for packets_in_tick in antenna.packet_queues_tick:
+        #        for packet in packets_in_tick:
+        #            print(packet.size)
 
 if __name__ == '__main__':
     main(sys.argv[1:])
