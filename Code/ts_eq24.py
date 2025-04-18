@@ -80,7 +80,7 @@ def generate_expo_inter_arrivals(tfinal, inter_mean_ms):
     inter_arrivals = []
     total_time = 0.0
     while total_time < tfinal:
-        interval = random.expovariate(1.0 / inter_mean_s)
+        interval = (random.expovariate(1.0 / inter_mean_s))*1000        
         total_time += interval
         if total_time <= tfinal:
             inter_arrivals.append(interval)
@@ -94,7 +94,7 @@ def generate_uniform_inter_arrivals(tfinal, min_ms, max_ms):
     inter_arrivals = []
     total_time = 0.0
     while total_time < tfinal:
-        interval = random.uniform(min_s, max_s)
+        interval = (random.uniform(min_s, max_s))*1000
         total_time += interval
         if total_time <= tfinal:
             inter_arrivals.append(interval)
