@@ -696,7 +696,7 @@ def plottingFunction(antennas, dt):
     plt.xlabel("Time (ms)")
     plt.ylabel("Number of Packets Transmitted")
     plt.title(f"Packet Transmission (tick={dt}ms)")
-    plt.legend(loc="upper left")
+    plt.legend(loc="upper right")
     plt.grid(True, axis="y", linestyle="--", alpha=0.5)
     plt.tight_layout()
     plt.show()

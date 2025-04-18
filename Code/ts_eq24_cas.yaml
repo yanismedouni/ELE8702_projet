@@ -21,9 +21,9 @@ ETUDE_DE_TRANSMISSION:
 
       #If there are no UE with certain app, don't remove it, simply place number: 0
       UE1-App1 : # 4K streaming devices
-         number : 40
+         number : 0
       UE2-App2 : # Drones devices
-         number : 40
+         number : 0
       UE3-App3 : # Auto detect devices
          number: 1000 # a changer lors de la remise; done for test purposes
    GEOMETRY:
@@ -40,7 +40,7 @@ ETUDE_DE_TRANSMISSION:
       read : ts_eq24_segments.txt
       #write: time_segments_ts.txt
    FREQUENCY :
-      BW : 20 #Bandwidth in MHz
-      SCS : 15 #Subcarrier spacing in KHz
+      BW : 150 #Bandwidth in MHz
+      SCS : 120 #Subcarrier spacing in KHz
    OVERHEAD :
       Bits : 6 # nombre de bits d'overhead

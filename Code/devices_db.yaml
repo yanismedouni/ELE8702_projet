@@ -56,7 +56,7 @@ UES:
     #inter_distribution: exponential #pour les temps d'arrivée
     inter_mean_ms: 200          # Temps moyen d'inter-arrivée en millisecondes
     length_distribution: uniform #pour la longueur des packets
-    base_bits: 400000     # Longueur moyenne du paquet en bits
+    base_bits: 40000     # Longueur moyenne du paquet en bits
     variability: 0.20     # Variabilité de ±20%
 
   UE2-App2:
