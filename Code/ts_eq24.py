@@ -940,16 +940,13 @@ def main(args):
 
     # RB allocation
     antenna_weights = compute_antenna_load_weights(antennas, ues)
-    total_nrb = get_nrb_from_bw_scs(bw_mhz, scs_khz)  # Assume 100 MHz and 30 kHz SCS
+    total_nrb = get_nrb_from_bw_scs(bw_mhz, scs_khz) 
     assign_rb_proportionally(total_nrb, antenna_weights, antennas)
     print("RBs allocated")
 
     # Generation of traffic for UEs
     generate_packet_length_and_arrivals(data_case, devices, ues)
     print("\nUEs traffic generated")
-
-    with open("pkt_size.txt", "w") as file:
-        pass
 
     #Traffic Simulation
     current_time = 0
