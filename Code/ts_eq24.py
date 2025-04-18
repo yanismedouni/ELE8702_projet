@@ -1,6 +1,6 @@
 ## Écrire votre numéro d'équipe: 24
 ## Érire les noms et matricules de chaque membre de l'équipe
-#Eliott Goulet :
+#Eliott Goulet : 2147545
 #Alexandre Léonard: 2141842
 #Massine Azzoug: 2054259
 #Yanis Medouni: 2153125
