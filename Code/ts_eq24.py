@@ -41,16 +41,17 @@ class Antenna:
         return f"Antenna(id={self.id}, freq={self.frequency}GHz, RBs={self.nrb}, UEs={len(self.assoc_ues)})"
 
 class Packet:
-    def __init__(self, source, app, packet_id, packet_size, timeTX):
+    def __init__(self, source, app, packet_id, packet_size, timeTX, frag_flag):
         self.id = packet_id
         self.size = packet_size
         self.timeTX = timeTX
         self.timeRX = None
         self.app = app
         self.source = source
+        self.frag_flag = frag_flag
 
     def __repr__(self):
-        return (f"size={self.size}, timeTX={self.timeTX}, app={self.app}, source={self.source}")
+        return (f"size={self.size}, timeTX={self.timeTX}, app={self.app}, source={self.source}, frag_flag={self.frag_flag}")
 
 
 class UE:
