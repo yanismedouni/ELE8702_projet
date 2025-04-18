@@ -922,9 +922,9 @@ def plottingFunction(antennas, dt):
         values = [app_packet_counts[tick][app] for tick in ticks]
         plt.bar(times, values, bottom=bottom, width=dt, label=app, color=app_colors[app])
         bottom = [bottom[i] + values[i] for i in range(len(values))]
-    plt.xlabel("Tick")
+    plt.xlabel("Time (ms)")
     plt.ylabel("Number of Packets Transmitted")
-    plt.title("Packet Transmission per Tick")
+    plt.title(f"Packet Transmission received by all antennas (tick={dt}ms)")
     plt.legend(loc='upper left')
     plt.grid(True, axis='y', linestyle='--', alpha=0.5)
     plt.tight_layout()
@@ -937,9 +937,9 @@ def plottingFunction(antennas, dt):
         values = [app_bit_counts[tick][app] for tick in ticks]
         plt.bar(times, values, bottom=bottom, width=dt, label=app, color=app_colors[app])
         bottom = [bottom[i] + values[i] for i in range(len(values))]
-    plt.xlabel("Tick")
+    plt.xlabel("Time (ms)")
     plt.ylabel("Total Bits Transmitted")
-    plt.title("Bit Transmission per Tick")
+    plt.title(f"Bit Transmission received by all antennas (tick={dt}ms)")
     plt.legend(loc='upper left')
     plt.grid(True, axis='y', linestyle='--', alpha=0.5)
     plt.tight_layout()
