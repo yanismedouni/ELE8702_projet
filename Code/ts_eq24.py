@@ -49,6 +49,10 @@ class Packet:
         self.app = app
         self.source = source
 
+    def __repr__(self):
+        return (f"size={self.size}, timeTX={self.timeTX}, app={self.app}, source={self.source}")
+
+
 class UE:
     def __init__(self, id, app_name):
         self.id = id
@@ -888,37 +892,57 @@ def treat_cli_args(args) :
     
     return args[0]
 
-def plottingFunction(antennas):
-    from collections import defaultdict
+import matplotlib.pyplot as plt
+from collections import defaultdict
 
-    # Dictionary to store stats per tick
-    tick_stats = defaultdict(lambda: {"packet_count": 0, "total_bits": 0})
+def plottingFunction(antennas):
+    packet_counts = defaultdict(lambda: {"app1": 0, "app2": 0, "app3": 0})
+    bit_counts = defaultdict(lambda: {"app1": 0, "app2": 0, "app3": 0})
 
     for antenna in antennas:
         for tick, packets in enumerate(antenna.packet_queues_tick):
-            tick_stats[tick]["packet_count"] += len(packets)
-            tick_stats[tick]["total_bits"] += sum(pkt.size for pkt in packets)
+            for pkt in packets:
+                app = pkt.app.lower()
+                if app in packet_counts[tick]:
+                    packet_counts[tick][app] += 1
+                    bit_counts[tick][app] += pkt.size
 
-    ticks = sorted(tick_stats.keys())
-    packet_counts = [tick_stats[tick]["packet_count"] for tick in ticks]
+    ticks = sorted(packet_counts.keys())
+
+    # Prepare data for packets
+    p_app1 = [packet_counts[tick]["app1"] for tick in ticks]
+    p_app2 = [packet_counts[tick]["app2"] for tick in ticks]
+    p_app3 = [packet_counts[tick]["app3"] for tick in ticks]
 
     plt.figure(figsize=(10, 5))
-    plt.bar(ticks, packet_counts, color='skyblue', edgecolor='black')
+    plt.bar(ticks, p_app1, label="App1 (Streaming)", color='skyblue')
+    plt.bar(ticks, p_app2, bottom=p_app1, label="App2 (Drone)", color='orange')
+    bottom_app1_app2 = [a + b for a, b in zip(p_app1, p_app2)]
+    plt.bar(ticks, p_app3, bottom=bottom_app1_app2, label="App3 (Auto)", color='green')
+
     plt.xlabel("Tick")
     plt.ylabel("Number of Packets Transmitted")
-    plt.title("Packet Transmission per Tick")
+    plt.title("Packet Count per Tick by Application")
+    plt.legend(loc="upper left")
     plt.grid(True, axis='y', linestyle='--', alpha=0.7)
     plt.tight_layout()
     plt.show()
 
-    ticks = sorted(tick_stats.keys())
-    bit_counts = [tick_stats[tick]["total_bits"] for tick in ticks]
+    # Prepare data for bits
+    b_app1 = [bit_counts[tick]["app1"] for tick in ticks]
+    b_app2 = [bit_counts[tick]["app2"] for tick in ticks]
+    b_app3 = [bit_counts[tick]["app3"] for tick in ticks]
 
     plt.figure(figsize=(10, 5))
-    plt.bar(ticks, bit_counts, color='salmon', edgecolor='black')
+    plt.bar(ticks, b_app1, label="App1 (Streaming)", color='skyblue')
+    plt.bar(ticks, b_app2, bottom=b_app1, label="App2 (Drone)", color='orange')
+    bottom_bits_app1_app2 = [a + b for a, b in zip(b_app1, b_app2)]
+    plt.bar(ticks, b_app3, bottom=bottom_bits_app1_app2, label="App3 (Auto)", color='green')
+
     plt.xlabel("Tick")
     plt.ylabel("Total Bits Transmitted")
-    plt.title("Total Bits Transmitted per Tick")
+    plt.title("Bits Transmitted per Tick by Application")
+    plt.legend(loc="upper left")
     plt.grid(True, axis='y', linestyle='--', alpha=0.7)
     plt.tight_layout()
     plt.show()
