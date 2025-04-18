@@ -54,7 +54,8 @@ def slot_traffic_creation(data_case, antennas, ues, current_time, tick):
                         app=ue.app,
                         packet_id=len(ue.packets),
                         packet_size=pkt_size,
-                        timeTX=current_time
+                        timeTX=current_time,
+                        frag_flag=0
                     )
                     all_ready_packets.append(
                         (priority, current_time, eff_rb_bits, pkt_size, ue, pkt)
@@ -86,7 +87,8 @@ def slot_traffic_creation(data_case, antennas, ues, current_time, tick):
                         app=pkt.app,
                         packet_id=pkt.id,
                         packet_size=fragment_bits,
-                        timeTX=current_time
+                        timeTX=current_time,
+                        frag_flag = 1
                     )
                     current_slot_packets.append(fragment_pkt)
 

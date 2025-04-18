@@ -41,16 +41,17 @@ class Antenna:
         return f"Antenna(id={self.id}, freq={self.frequency}GHz, RBs={self.nrb}, UEs={len(self.assoc_ues)})"
 
 class Packet:
-    def __init__(self, source, app, packet_id, packet_size, timeTX):
+    def __init__(self, source, app, packet_id, packet_size, timeTX, frag_flag):
         self.id = packet_id
         self.size = packet_size
         self.timeTX = timeTX
         self.timeRX = None
         self.app = app
         self.source = source
+        self.frag_flag = frag_flag
 
     def __repr__(self):
-        return (f"size={self.size}, timeTX={self.timeTX}, app={self.app}, source={self.source}")
+        return (f"size={self.size}, timeTX={self.timeTX}, app={self.app}, source={self.source}, frag_flag={self.frag_flag}")
 
 
 class UE:
@@ -996,16 +997,13 @@ def main(args):
 
     # RB allocation
     antenna_weights = compute_antenna_load_weights(antennas, ues)
-    total_nrb = get_nrb_from_bw_scs(bw_mhz, scs_khz)  # Assume 100 MHz and 30 kHz SCS
+    total_nrb = get_nrb_from_bw_scs(bw_mhz, scs_khz) 
     assign_rb_proportionally(total_nrb, antenna_weights, antennas)
     print("RBs allocated")
 
     # Generation of traffic for UEs
     generate_packet_length_and_arrivals(data_case, devices, ues)
     print("\nUEs traffic generated")
-
-    with open("pkt_size.txt", "w") as file:
-        pass
 
     #Traffic Simulation
     current_time = 0
