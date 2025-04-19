@@ -220,16 +220,14 @@ def assign_rb_proportionally(total_nrb, antenna_weights, antennas):
         antenna.nrb = nrb_alloc[antenna.id]
 
 
-def findMinMaxPathloss(plFileName):
+def findMinMaxPathloss(pathlosses,ues):
     min_val = math.inf
     max_val = -math.inf
-    with open(plFileName, "r") as f:
-        for line in f:
-            parts = line.strip().split()
-            value = float(parts[2])
-            if(value != math.inf and value != 0): 
-                min_val = min(min_val, value)
-                max_val = max(max_val, value)
+    for ue in ues:
+        pl = pathlosses[int(ue.id)][int(ue.assoc_ant)]
+        if(pl != math.inf and pl != 0): 
+            min_val = min(min_val, pl)
+            max_val = max(max_val, pl)
     return (min_val, max_val)
 
 def pathloss_to_cqi(pathloss, minPl, maxPl):
@@ -752,13 +750,14 @@ def main(args):
 
     # Pathloss computation
     pathlosses = generate_pathlosses(data_case, ues, antennas)
-    (minPl, maxPl) = findMinMaxPathloss("ts_eq24_pl.txt")
     print("Pathlosses calculated")
 
     # Association and pathloss recording
     create_assoc_files(data_case, ues, antennas, pathlosses)
     create_pathloss_file(data_case, ues, antennas, pathlosses)
     print("Recordings done")
+
+    (minPl, maxPl) = findMinMaxPathloss(pathlosses,ues)
 
     # Compute CQI and efficiency for each UE
     for ue in ues:
@@ -767,6 +766,7 @@ def main(args):
         ue.eff = get_efficiency_from_cqi(ue.cqi)
         print(f"\rUE efficiency: {ue.id}", end="")
     print("\n Efficiency calculated")
+
 
     # RB allocation
     antenna_weights = compute_antenna_load_weights(antennas, ues)
